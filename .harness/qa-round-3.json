@@ -1,0 +1,37 @@
+{
+  "verdict": "revise",
+  "summary": "Core parsing, optimization, and app wiring are in good shape, but the release bar is still not met because the browser/mobile acceptance path remains unverified in an actual browser environment, and the new smoke harness still bypasses the shipped HTML entrypoint.",
+  "score": 90,
+  "strengths": [
+    "`npm test` and `npm run build` both pass, and the output remains a frontend-only static bundle under `dist/`.",
+    "The parser and optimizer satisfy the high-value acceptance checks I could verify directly: exact 10-player validation, Korean error messaging, role composition `1/2/2`, unique-player usage, and zero-difference sample output.",
+    "The prior QA gap around `src/main.js` event wiring is addressed: `test/appFlow.test.js` now exercises the actual entrypoint through the fake DOM, and the new browser smoke harness meaningfully improves the repo’s verification surface."
+  ],
+  "findings": [
+    {
+      "severity": "high",
+      "title": "Real browser/mobile release evidence is still missing",
+      "detail": "`npm run test:browser` still fails in this environment because no Chromium-family browser is available, and `FINAL_OUTPUT.md:25-26` plus `FINAL_OUTPUT.md:34-36` explicitly acknowledge that no browser-engine run was completed. The acceptance criteria require usable `360px` mobile behavior and static frontend readiness, so this remains a release blocker rather than a closed QA item.",
+      "fix": "Run the browser smoke on a machine with Chromium/Chrome/Edge, capture the passing desktop and `360px` mobile results, and update the handoff to mark that criterion as verified only after the run succeeds."
+    },
+    {
+      "severity": "medium",
+      "title": "The new smoke harness does not exercise the shipped `dist/index.html`",
+      "detail": "`scripts/browserSmoke.mjs:36-127` builds a temporary HTML shell and imports an inlined copy of `dist/src/main.js`, while the actual shipped page is `index.html:1-11`. That means the harness validates built JS/CSS behavior, but it still bypasses the real HTML entrypoint and its asset wiring even though `README.md:52-53` and `FINAL_OUTPUT.md:36` frame it as direct static-bundle verification. This weakens its value for GitHub Pages-style deployment regressions.",
+      "fix": "Either point the headless smoke at `dist/index.html` (or a faithful copied shell) so the real entrypoint is tested, or narrow the docs to say the harness validates built JS/CSS in a surrogate HTML shell rather than the literal shipped page."
+    }
+  ],
+  "required_fixes": [
+    "Produce passing real-browser evidence for `npm run test:browser` at both desktop and `360px` mobile widths, then update the handoff with that result.",
+    "Adjust the smoke harness or its documentation so GitHub Pages/static-bundle verification claims match what is actually executed."
+  ],
+  "verification_run": [
+    "`npm test`",
+    "`npm run build`",
+    "`npm run test:browser`",
+    "`node --input-type=module -e \"import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; ...\"`",
+    "`for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v \"$name\" || true; done`",
+    "Inspected `scripts/browserSmoke.mjs`, `README.md`, `FINAL_OUTPUT.md`, `index.html`, and the core `src/` and `test/` files"
+  ],
+  "release_readiness": "Not release-ready. The app looks close, but the required browser/mobile acceptance evidence is still absent and the new smoke harness does not fully validate the shipped HTML entrypoint."
+}

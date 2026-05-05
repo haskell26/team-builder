@@ -1,0 +1,102 @@
+{
+  "project_name": "Team Builder",
+  "summary": "Build a frontend-only, Korean-language web app deployable to GitHub Pages that lets an Overwatch community admin paste 10 players from a spreadsheet, validates the data, computes the most balanced 5v5 split under the required role composition, and presents a readable result. v1 excludes persistence, role-preference ranking, and non-Overwatch game support.",
+  "milestones": [
+    {
+      "title": "Foundation And Domain Model",
+      "objective": "Set up a static frontend baseline and lock the scoring and data model so later work is deterministic.",
+      "deliverables": [
+        "Scaffold a Vite + React + TypeScript single-page app with no backend dependency and a layout suitable for GitHub Pages.",
+        "Create `src/config/gameConfig.ts` containing Korean role labels, tier aliases, and numeric scores: `U=0`, `브론즈=1`, `실버=2`, `골드=3`, `플래티넘=4`, `다이아=5`, `마스터=6`, `그랜드마스터/그마=7`.",
+        "Define shared types in `src/types.ts` for `PlayerInput`, `NormalizedPlayer`, `Role`, `TeamAssignment`, and `BalanceResult`.",
+        "Add a sample fixture in `src/fixtures/samplePlayers.tsv` for development and automated tests.",
+        "Set base styling tokens and Korean copy constants so the UI stays consistent and readable on desktop and mobile."
+      ]
+    },
+    {
+      "title": "Clipboard Input Flow",
+      "objective": "Implement the spreadsheet paste experience, normalization, and Korean validation messages.",
+      "deliverables": [
+        "Build an input panel with a large paste textarea, example format, and a primary action such as `팀 나누기`.",
+        "Implement `src/lib/parseClipboard.ts` to parse tab-separated spreadsheet text, trim whitespace, ignore blank trailing lines, and map the expected columns `유저 이름`, `탱커 티어`, `딜러 티어`, `힐러 티어`.",
+        "Implement tier normalization so common aliases like `언랭`, `Unranked`, `플래`, and `그마` resolve to canonical values.",
+        "Validate exactly 10 players, required non-empty name and tier cells, allowed tier values only, and unique player names; surface all errors in Korean before the optimizer runs.",
+        "Render a preview table of normalized players so the admin can confirm the pasted data before viewing results."
+      ]
+    },
+    {
+      "title": "Balance Optimizer",
+      "objective": "Compute the best team split with deterministic tie-breaking and testable logic.",
+      "deliverables": [
+        "Implement `src/lib/optimizer.ts` as a pure function that searches all valid assignments for two teams of `1 tank + 2 damage + 2 support`, using every player exactly once.",
+        "Use a reduced exhaustive search instead of free-form permutation: choose Tank A, Tank B, Damage pair A, Damage pair B, then assign the remaining players to Support A and Support B.",
+        "Score each assignment by total team score difference first, then by assigned-role unranked count difference, then by a deterministic lexicographic key so repeated runs return the same result.",
+        "Return a structured result object with per-team slots, assigned role, tier text, numeric score, total score, absolute score difference, and unranked counts.",
+        "Add unit tests that prove the optimizer preserves role counts, never duplicates players, and finds the best candidate for fixed fixtures."
+      ]
+    },
+    {
+      "title": "Result UI, QA, And Handoff",
+      "objective": "Present the result clearly, verify the full flow, and leave the repo ready for GitHub Pages deployment.",
+      "deliverables": [
+        "Build a result board showing both teams side by side on desktop and stacked on mobile, with role badges, player names, tier labels, per-slot scores, team totals, and the final score difference.",
+        "Highlight unranked assignments visibly so the admin can confirm that they are spread fairly.",
+        "Provide a simple reset or edit path that returns the user to the pasted input without adding complex UX.",
+        "Add automated tests for parser + optimizer integration and a UI smoke test for the main paste-to-result flow.",
+        "Document local run, test, build, and GitHub Pages deployment steps in `README.md`, and record assumptions, scope cuts, and verification evidence in `FINAL_OUTPUT.md`."
+      ]
+    }
+  ],
+  "acceptance_criteria": [
+    "Given a pasted TSV table with headers `유저 이름`, `탱커 티어`, `딜러 티어`, `힐러 티어` and 10 valid rows, clicking `팀 나누기` produces exactly 2 teams of 5 players each, with each team containing 1 tank, 2 damage, and 2 support, and each input player appearing exactly once.",
+    "Given a fixed fixture where there are 2 tank specialists, 4 damage specialists, and 4 support specialists at mirrored scores, the computed result has a total score difference of `0`.",
+    "When pasted input has fewer or more than 10 players, duplicate names, missing cells, or unsupported tier text, the app does not compute teams and instead shows explicit Korean validation messages.",
+    "Given a tie-break fixture with multiple equal-score solutions, the selected result has the smallest absolute difference in assigned-role unranked counts between the two teams.",
+    "All user-facing controls, labels, help text, and validation messages are in Korean, and the main workflow is usable at `360px` mobile width and standard desktop width without horizontal overflow.",
+    "`npm run test` and `npm run build` succeed, and the built app is a static bundle that can be served without any backend process."
+  ],
+  "test_strategy": [
+    "Unit-test tier alias normalization and score mapping including `U`, `언랭`, `브론즈`, `플래`, `그마`, and English aliases.",
+    "Unit-test clipboard parsing with realistic Excel paste text, extra blank lines, invalid column names, malformed row counts, and duplicate player names.",
+    "Unit-test the optimizer with at least two fixtures: one zero-difference case and one tie case where unranked distribution decides the winner.",
+    "Add an integration or component test for the core UI flow: paste fixture text into the textarea, trigger calculation, and assert Korean result cards and totals render.",
+    "Run a manual smoke test against the built `dist/` output in a local static server to verify desktop/mobile layout and GitHub Pages asset-path compatibility."
+  ],
+  "risks": [
+    {
+      "risk": "Spreadsheet paste formats vary between Excel, Google Sheets, and OS clipboard behavior.",
+      "mitigation": "Keep the parser tab-first, trim BOM and whitespace, ignore blank trailing lines, and show a visible sample format plus actionable Korean errors."
+    },
+    {
+      "risk": "Tier wording is ambiguous because the spec omits some middle tiers and communities may use shorthand.",
+      "mitigation": "Centralize aliases in one config module, ship with the standard Overwatch ladder assumption, and document the mapping in `README.md` and `FINAL_OUTPUT.md`."
+    },
+    {
+      "risk": "Optimizer bugs can silently produce invalid or suboptimal teams.",
+      "mitigation": "Keep the optimizer pure, use exhaustive search with symmetry reduction instead of heuristics, and cover it with deterministic fixture-based tests."
+    },
+    {
+      "risk": "GitHub Pages deployment can break asset paths in SPA builds.",
+      "mitigation": "Avoid client-side routing, use relative or correctly based static asset paths, and verify the built `dist/` bundle through a local static-server smoke test before handoff."
+    },
+    {
+      "risk": "Readability can degrade on mobile if both teams are rendered as dense tables.",
+      "mitigation": "Use card-based team layouts with clear role badges and a stacked mobile presentation, then verify at 360px width during manual QA."
+    }
+  ],
+  "definition_of_done": [
+    "A frontend-only app in Korean accepts spreadsheet paste input, validates it, and computes a balanced 10-player Overwatch team split.",
+    "The optimizer is deterministic and verified by automated tests for composition rules, scoring, and unranked tie-breaking.",
+    "The result screen clearly shows both teams, assigned roles, tier scores, team totals, and balance difference on mobile and desktop.",
+    "`README.md` contains accurate setup, test, build, and GitHub Pages deployment instructions.",
+    "`FINAL_OUTPUT.md` records implemented scope, explicit assumptions, any scope cuts, and verification evidence.",
+    "No backend, persistence layer, or placeholder-only UX is introduced in the first handoff."
+  ],
+  "open_questions": [
+    "Assumption: `.harness/spec.md` and `.harness/plan.json` are not present in this workspace, so this plan is derived from the user-provided spec in the prompt.",
+    "Assumption: v1 requires exactly 10 players every time; bench players, auto-fill, and partial rosters are out of scope.",
+    "Assumption: the tier ladder is `U/Unranked=0`, `브론즈=1`, `실버=2`, `골드=3`, `플래티넘=4`, `다이아=5`, `마스터=6`, `그랜드마스터/그마=7`.",
+    "Assumption: each player can be assigned to any one role using the tier provided for that role; role preference ranking is intentionally deferred.",
+    "Assumption: local storage, saved player pools, and support for games beyond Overwatch remain out of scope for the first handoff."
+  ]
+}

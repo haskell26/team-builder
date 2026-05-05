@@ -1,0 +1,52 @@
+{
+  "summary": "Added a portable headless-browser smoke harness for the built app, strengthened responsive overflow safeguards, expanded automated coverage, and updated handoff docs. The remaining limitation is environmental: this sandbox has no runnable Chromium-family browser, so the new browser smoke check could not be completed here.",
+  "completed_work": [
+    "Added `scripts/browserSmoke.mjs`, which builds a `file://`-based headless-browser harness for the `dist/` app, auto-runs the sample paste flow, and checks both desktop (`1280px`) and mobile (`360px`) viewports for correct rendering and horizontal overflow.",
+    "Added `test/browserSmoke.test.js` to cover the browser smoke harness helpers and `test/responsiveLayout.test.js` to lock in the key responsive CSS rules.",
+    "Hardened `src/styles.css` with shrink/wrap safeguards and explicit max-width containment for the sample and preview overflow containers.",
+    "Added `npm run test:browser` in `package.json` and documented the browser smoke workflow, prerequisites, and static-bundle verification path in `README.md`.",
+    "Updated `FINAL_OUTPUT.md` so verification evidence and remaining limits match what was actually exercised in this round."
+  ],
+  "verification": [
+    {
+      "command": "npm test",
+      "result": "Passed. All 5 test files succeeded, including parser, optimizer, real `src/main.js` DOM smoke coverage, browser-smoke helper tests, and responsive layout regression tests."
+    },
+    {
+      "command": "npm run build",
+      "result": "Passed. `node ./scripts/build.mjs` completed and rebuilt the static `dist/` bundle."
+    },
+    {
+      "command": "npm run test:browser",
+      "result": "Failed as expected in this sandbox because no Chromium-family browser binary is available. The script exited with `Chromium 계열 브라우저를 찾지 못했습니다. --browser=/path/to/browser 로 직접 지정해 주세요.`"
+    },
+    {
+      "command": "node --input-type=module -e \"import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const text = await readFile(new URL('./src/fixtures/samplePlayers.tsv', import.meta.url), 'utf8'); const flow = buildBalanceFromClipboard(text); console.log(JSON.stringify({ errors: flow.errors, scoreDifference: flow.result?.scoreDifference, unrankedDifference: flow.result?.unrankedDifference, totals: flow.result?.teams.map((team) => team.totalScore), roleCounts: flow.result?.teams.map((team) => team.assignments.reduce((counts, assignment) => ({ ...counts, [assignment.assignedRole]: (counts[assignment.assignedRole] ?? 0) + 1 }), {})) }, null, 2));\"",
+      "result": "Passed. Returned `errors: []`, `scoreDifference: 0`, `unrankedDifference: 0`, team totals `[16, 16]`, and role counts `1 tank / 2 damage / 2 support` for both teams."
+    },
+    {
+      "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v \"$name\" || true; done",
+      "result": "Returned no paths, confirming that this sandbox does not provide a runnable Chromium-family browser binary for the new headless smoke check."
+    }
+  ],
+  "known_gaps": [
+    "Actual browser-engine execution of `npm run test:browser` is still unverified in this sandbox because no supported browser binary is installed here.",
+    "The original QA ask for concrete browser/mobile runtime evidence is only partially addressed in this environment; the repo now contains the executable harness, but QA still needs to run it on a machine with Chromium/Chrome/Edge.",
+    "Nice-to-have scope remains out of scope: role preference ordering, saved player pools, and multi-game support."
+  ],
+  "handoff_notes": [
+    "For the next QA pass, run `npm run build` first, then `npm run test:browser -- --browser=/path/to/chromium` on a machine with a Chromium-family browser installed.",
+    "The browser smoke script does not require a local HTTP server; it verifies the built `dist/` bundle through a temporary `file://` harness, which avoids the sandbox's blocked local-port limitation.",
+    "If QA reports a real-browser failure, start with `scripts/browserSmoke.mjs`, `test/browserSmoke.test.js`, and `test/responsiveLayout.test.js`; those files contain the intended viewport checks and overflow assertions."
+  ],
+  "files_of_interest": [
+    "/home/user/harness-engineering/projects/team-builder/workspace/scripts/browserSmoke.mjs",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/browserSmoke.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/responsiveLayout.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/styles.css",
+    "/home/user/harness-engineering/projects/team-builder/workspace/package.json",
+    "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
+    "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"
+  ],
+  "ready_for_qa": true
+}

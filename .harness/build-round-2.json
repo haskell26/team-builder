@@ -1,0 +1,45 @@
+{
+  "summary": "Addressed the round-1 QA blockers by replacing the helper-only UI test with a real `src/main.js` DOM smoke test, and corrected the handoff docs so verification claims now match what was actually exercised.",
+  "completed_work": [
+    "Rewrote `test/appFlow.test.js` to load the actual app entrypoint, simulate textarea input and button clicks, and assert the paste -> validate -> team split -> reset flow through DOM event wiring.",
+    "Added `testing/fakeDom.js`, a minimal DOM harness that supports `querySelector`, `innerHTML`, event listeners, form values, and `scrollIntoView` so the app can be exercised without external test dependencies.",
+    "Added a second main-entrypoint smoke test for invalid clipboard input to confirm Korean validation errors block result rendering.",
+    "Updated `README.md` to describe that `npm test` now covers parser, optimizer, and the `src/main.js` DOM flow.",
+    "Updated `FINAL_OUTPUT.md` so its verification section accurately states the new DOM smoke coverage and the remaining live-browser limitation."
+  ],
+  "verification": [
+    {
+      "command": "npm test",
+      "result": "Passed. `test/appFlow.test.js`, `test/optimizer.test.js`, and `test/parseClipboard.test.js` all succeeded."
+    },
+    {
+      "command": "npm run build",
+      "result": "Passed. `node ./scripts/build.mjs` completed and reported `Built static bundle in dist/.`"
+    },
+    {
+      "command": "node --input-type=module -e \"import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const text = await readFile(new URL('./src/fixtures/samplePlayers.tsv', import.meta.url), 'utf8'); const flow = buildBalanceFromClipboard(text); console.log(JSON.stringify({ errors: flow.errors, scoreDifference: flow.result?.scoreDifference, unrankedDifference: flow.result?.unrankedDifference, totals: flow.result?.teams.map((team) => team.totalScore) }, null, 2));\"",
+      "result": "Returned `errors: []`, `scoreDifference: 0`, `unrankedDifference: 0`, and team totals `[16, 16]` for the bundled sample fixture."
+    },
+    {
+      "command": "python3 -m http.server 4173 -d dist",
+      "result": "Failed in this sandbox with `PermissionError: [Errno 1] Operation not permitted`, so a socket-based live preview still could not be verified here."
+    }
+  ],
+  "known_gaps": [
+    "Live browser-engine rendering and manual visual QA against a served `dist/` build are still unverified because this sandbox cannot open a local preview port.",
+    "The new UI smoke coverage uses a lightweight fake DOM harness, not a full browser automation stack.",
+    "Nice-to-have scope remains unimplemented: role preference ordering, saved player pools, and support for games beyond Overwatch."
+  ],
+  "handoff_notes": [
+    "The QA blocker was specifically around `src/main.js`; the new smoke tests now exercise its real event wiring instead of only pure helper/render functions.",
+    "Documentation in `FINAL_OUTPUT.md` now matches the actual verification scope from this round.",
+    "This workspace is not a Git repository, so no git status/commit metadata was available during the pass."
+  ],
+  "files_of_interest": [
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/testing/fakeDom.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
+    "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"
+  ],
+  "ready_for_qa": true
+}
