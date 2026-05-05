@@ -37,7 +37,6 @@ export const UI_COPY = {
 };
 
 export const SAMPLE_FORMAT_LINES = [
-  '유저 이름\t탱커 티어\t딜러 티어\t힐러 티어',
   '하늘방패\t마스터\t실버\t골드',
   '에임장인\t실버\t그마\tU',
   '구원천사\tU\t실버\t그마',
