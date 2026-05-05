@@ -1,5 +1,6 @@
 import { SAMPLE_FIXTURE_TEXT } from './constants/copy.js';
-import { buildBalanceFromClipboard, getSelectedCandidateResult } from './lib/appFlow.js';
+import { applySlotSelection, buildBalanceFromClipboard, getEditorGuideText, selectCandidate } from './lib/appFlow.js';
+import { getEditableSlots } from './lib/editor.js';
 import { parseClipboard } from './lib/parseClipboard.js';
 import { renderFeedback, renderPreview, renderResult, renderShell } from './lib/render.js';
 
@@ -12,7 +13,7 @@ const state = {
   candidates: [],
   candidateCount: 0,
   selectedCandidateId: null,
-  result: null,
+  editor: null,
 };
 
 root.innerHTML = renderShell();
@@ -37,7 +38,7 @@ function updateInputPanels() {
     state.errors,
     Boolean(state.clipboardText.trim()),
     state.players.length > 0,
-    Boolean(state.result),
+    Boolean(state.editor),
   );
   elements.previewPanel.innerHTML = renderPreview(state.players);
 }
@@ -50,9 +51,24 @@ function bindCandidateButtons() {
   });
 }
 
+function bindEditorSlotButtons() {
+  getEditableSlots(state.editor).forEach((slot) => {
+    document.querySelector(`#editor-slot-${slot.id}`)?.addEventListener('click', () => {
+      handleSlotSelection(slot.id);
+    });
+  });
+}
+
 function updateResultPanel() {
-  elements.resultPanel.innerHTML = renderResult(state.result, state.candidates, state.selectedCandidateId);
+  elements.resultPanel.innerHTML = renderResult({
+    candidateCount: state.candidateCount,
+    candidates: state.candidates,
+    selectedCandidateId: state.selectedCandidateId,
+    editor: state.editor,
+    editorGuideText: getEditorGuideText(state.editor),
+  });
   bindCandidateButtons();
+  bindEditorSlotButtons();
 }
 
 function syncPreview() {
@@ -62,6 +78,7 @@ function syncPreview() {
     state.candidates = [];
     state.candidateCount = 0;
     state.selectedCandidateId = null;
+    state.editor = null;
     return;
   }
 
@@ -75,7 +92,7 @@ function handleInputChange(nextValue) {
   state.candidates = [];
   state.candidateCount = 0;
   state.selectedCandidateId = null;
-  state.result = null;
+  state.editor = null;
   syncPreview();
   updatePanels();
 }
@@ -87,7 +104,7 @@ function handleBalance() {
     state.candidates = [];
     state.candidateCount = 0;
     state.selectedCandidateId = null;
-    state.result = null;
+    state.editor = null;
     updatePanels();
     return;
   }
@@ -98,18 +115,29 @@ function handleBalance() {
   state.candidates = balance.candidates;
   state.candidateCount = balance.candidateCount;
   state.selectedCandidateId = balance.selectedCandidateId;
-  state.result = balance.result;
+  state.editor = balance.editor;
   updatePanels();
   document.querySelector('#result-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function handleCandidateSelection(candidateId) {
-  if (!candidateId || candidateId === state.selectedCandidateId) {
+  if (!candidateId) {
     return;
   }
 
-  state.selectedCandidateId = candidateId;
-  state.result = getSelectedCandidateResult(state.candidates, candidateId, state.candidateCount);
+  const nextSelection = selectCandidate(state.candidates, state.players, candidateId, state.candidateCount);
+
+  state.selectedCandidateId = nextSelection.selectedCandidateId;
+  state.editor = nextSelection.editor;
+  updateResultPanel();
+}
+
+function handleSlotSelection(slotId) {
+  if (!slotId || !state.editor) {
+    return;
+  }
+
+  state.editor = applySlotSelection(state.editor, slotId);
   updateResultPanel();
 }
 
@@ -125,7 +153,7 @@ function clearAll() {
   state.candidates = [];
   state.candidateCount = 0;
   state.selectedCandidateId = null;
-  state.result = null;
+  state.editor = null;
   elements.textarea.value = '';
   updatePanels();
 }

@@ -49,13 +49,28 @@ test('assertViewportResult reports the key browser smoke failures', () => {
   const issues = assertViewportResult(
     {
       appReady: true,
-      teamCount: 1,
-      assignmentsPerTeam: [4],
-      scoreDifference: 1,
-      unrankedDifference: 2,
+      editorTeamCount: 1,
+      candidateCountVisible: 5,
+      miniSlotCount: 55,
+      editorSlotsPerTeam: [4],
+      hasScoreLabels: true,
       previewHasSampleName: false,
       resultHasTeamLabels: false,
       feedbackLooksSuccessful: false,
+      swapTargetsReady: false,
+      firstSelectionHighlighted: false,
+      guideAfterFirstSelection: '',
+      beforeSwap: {
+        firstName: '빛의수호',
+        secondName: '하늘방패',
+      },
+      afterSwap: {
+        firstName: '빛의수호',
+        secondName: '하늘방패',
+        firstTier: '실버',
+        secondTier: '골드',
+      },
+      guideAfterSwap: '',
       hasHorizontalOverflow: true,
       documentScrollWidth: 380,
       bodyScrollWidth: 380,
@@ -63,7 +78,9 @@ test('assertViewportResult reports the key browser smoke failures', () => {
     { label: 'mobile', width: 360, height: 1200 },
   );
 
-  assert.ok(issues.some((issue) => issue.includes('팀 개수')));
+  assert.ok(issues.some((issue) => issue.includes('편집 팀 개수')));
+  assert.ok(issues.some((issue) => issue.includes('압축 미리보기')));
   assert.ok(issues.some((issue) => issue.includes('가로 오버플로')));
-  assert.ok(issues.some((issue) => issue.includes('점수 차이')));
+  assert.ok(issues.some((issue) => issue.includes('점수 관련 라벨')));
+  assert.ok(issues.some((issue) => issue.includes('교차 역할 스왑')));
 });

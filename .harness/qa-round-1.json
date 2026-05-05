@@ -1,22 +1,40 @@
 {
-  "verdict": "pass",
-  "summary": "No release-blocking issues found in the implemented scope. The candidate-expansion feature, optional-header parsing, main UI selection flow, and handoff docs all match the current spec. Residual risk remains around real browser-engine evidence because Chromium is unavailable in this sandbox, but this round explicitly treats that as non-blocking.",
-  "score": 94,
+  "verdict": "revise",
+  "summary": "Core round-3 behavior is present and the automated suite/build pass, but the workspace is not release-ready yet: the shipped UI still exposes English product copy despite the Korean-language requirement, and the swap editor leaves its internal team summary data stale after edits.",
+  "score": 83,
   "strengths": [
-    "`src/lib/parseClipboard.js` correctly accepts canonical-header and headerless TSV input, preserves row numbering by mode, and returns Korean validation errors for bad counts, duplicates, empty cells, and unsupported tiers.",
-    "`src/lib/optimizer.js` produces 6 distinct candidates, preserves `1탱 2딜 2힐` composition, deduplicates team pairings, and ranks by total score difference, role-score-difference sum, tank difference, then unranked difference, with RNG limited to exact metric ties.",
-    "`src/main.js`, `src/lib/appFlow.js`, and `src/lib/render.js` preserve the existing single-best flow by defaulting to candidate 1 while allowing immediate candidate switching without clearing input.",
-    "`README.md` and `FINAL_OUTPUT.md` are aligned with the actual implementation and accurately describe the optional-header rule, six-candidate behavior, and the non-blocking browser-smoke limitation."
+    "`npm test` and `npm run build` both pass in the current workspace.",
+    "Header-present and headerless clipboard parsing both work, with Korean validation messages for bad input.",
+    "The compact 6-candidate preview flow, default candidate load, and two-click cross-role swap interaction are implemented and reproducible.",
+    "README and FINAL_OUTPUT document the new compact-preview/swap workflow and honestly call out the skipped real-browser check."
   ],
-  "findings": [],
-  "required_fixes": [],
+  "findings": [
+    {
+      "severity": "high",
+      "title": "User-facing UI is still mixed-language instead of Korean-only",
+      "detail": "The spec lists `product language in korean` as a must-have, but the shipped UI still renders English strings in primary result surfaces. `src/config/gameConfig.js:11`, `src/config/gameConfig.js:17`, and `src/config/gameConfig.js:23` define compact role badges as `TANK`, `DPS`, and `SUP`; `src/lib/render.js:86` renders `Final Edit`; and `src/constants/copy.js:26` shows `compact preview` in the main result hint. Rendering the result HTML from the sample fixture also confirmed these strings are present in the live output.",
+      "fix": "Translate all visible UI copy and role badges to Korean, then add a DOM-level test that fails if shipped UI text includes these English labels."
+    },
+    {
+      "severity": "medium",
+      "title": "Swap edits leave the editor's internal team model inconsistent",
+      "detail": "`src/lib/editor.js:26` only rehydrates `team.slots`, and `src/lib/editor.js:82` updates only those slots during swaps while copying the rest of each `team` object unchanged. That leaves `assignments`, `roleTotals`, `totalScore`, and `unrankedCount` frozen at the pre-swap candidate values. Reproduced with the sample fixture: after swapping `A-tank-1` and `B-support-2`, the visible slot changes to `하늘방패`, but `editor.teams[0].assignments` still reports `빛의수호` as the tank.",
+      "fix": "Rebuild each full `TeamSummary` from the current slot/player state on editor creation and after every swap, and add a unit test asserting that assignments and derived totals change with the swap."
+    }
+  ],
+  "required_fixes": [
+    "Remove the remaining English product copy from the shipped UI (`Final Edit`, `compact preview`, `TANK/DPS/SUP`) so the product surface is fully Korean.",
+    "Make the editable team model internally coherent after swaps by recomputing assignments and derived team metrics, not just the rendered slots.",
+    "Add regression tests for both the Korean-only UI copy requirement and the post-swap team-summary consistency."
+  ],
   "verification_run": [
-    "`npm test`",
-    "`npm run build`",
-    "`npm run test:browser` (fails here as expected because no Chromium-family browser is installed in this sandbox)",
-    "`node --input-type=module` check of `buildBalanceFromClipboard()` with header and headerless sample input confirmed 10 parsed players, 6 visible candidates, balanced `1/2/2` teams, and zero score/tank/unranked differences on the sample fixture.",
-    "`node --input-type=module` check of `enumerateValidAssignments()` / `getTopCandidates()` confirmed 113400 distinct candidate pairings for the sample fixture, unique top-6 keys, and nondecreasing ranking metrics.",
-    "`node --input-type=module` random-fixture verification across 10 generated rosters confirmed top-6 uniqueness, `1탱 2딜 2힐` structure, and metric ordering stability."
+    "`npm test` — passed (6/6 test files).",
+    "`npm run build` — passed.",
+    "`node -v` — `v22.17.1`.",
+    "`for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do printf '%s: ' \"$name\"; command -v \"$name\" || true; done` — no Chromium-family browser found, so `npm run test:browser` could not be run here.",
+    "Node smoke script against `buildBalanceFromClipboard(...)` — confirmed 6 candidates render, the first candidate auto-loads into the editor, header/headerless input both parse, and cross-role swap refreshes visible tier text.",
+    "Node render check against `renderResult(...)` — confirmed live HTML still contains `Final Edit` and `TANK/DPS/SUP`.",
+    "Node state check against `applySlotSelection(...)` — confirmed swapped slot names update while `editor.teams[0].assignments` remains stale."
   ],
-  "release_readiness": "Release-ready for this iteration. The feature work and automated verification meet the updated round scope; only the already-documented real-browser evidence gap remains, and the spec explicitly marks that gap as non-blocking for this pass."
+  "release_readiness": "Not ready for release until the UI is fully localized to Korean and the swap editor rebuilds a coherent post-edit team model."
 }

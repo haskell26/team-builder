@@ -1,20 +1,25 @@
 # Final Output
 
-## 이번 라운드 구현 범위
+## 이번 라운드에서 구현한 내용
 
-- 기존 붙여넣기, 검증, 단일 추천 흐름을 유지한 채 상위 후보 조합 6개 비교 기능을 추가했습니다.
-- 입력 첫 행이 정확한 한국어 헤더일 때만 헤더로 인식하도록 바꿔, 헤더 포함/미포함 붙여넣기를 모두 지원합니다.
-- 후보 조합 정렬 기준을 `총점 차이 -> 역할군 차이 합 -> 탱커 차이 -> 언랭 분배 차이 -> 완전 동률 시 무작위` 순서로 확장했습니다.
-- 결과 화면에 후보 카드 목록을 추가하고, 첫 후보를 기본 선택한 뒤 클릭 시 상세 팀 구성이 즉시 바뀌도록 수정했습니다.
-- 파서, 옵티마이저, DOM 흐름 테스트를 이번 기능 기준으로 확장했습니다.
+- 기존 붙여넣기, 검증, 후보 6개 생성 흐름을 유지한 채 결과 UI 를 압축 미리보기 중심으로 재구성했습니다.
+- 후보 카드마다 `팀 A / 팀 B` 의 `1탱 2딜 2힐` 슬롯을 작은 카드로 보여 주도록 바꿨습니다.
+- 플레이어 이름 칩과 티어 토큰에 지정 색상 규칙을 적용했습니다.
+- 메인 UI 에서 개인 점수, 팀 총점, 숫자 점수 차이, 점수 요약 카드를 제거했습니다.
+- 선택된 후보 1개만 최종 편집 영역에 불러오고, 슬롯 두 개를 차례대로 클릭하면 즉시 스왑되도록 구현했습니다.
+- 다른 역할끼리 스왑해도 도착한 슬롯 역할 기준으로 티어 표시가 다시 계산되도록 편집 모델을 분리했습니다.
+- 스왑 뒤에는 슬롯 표시뿐 아니라 `assignments`, `roleTotals`, `totalScore`, `unrankedCount` 도 현재 편집 상태 기준으로 다시 계산되게 고쳤습니다.
+- 후보 재선택 시 항상 fresh copy 를 불러오도록 하여 이전 스왑 상태가 섞이지 않게 했습니다.
+- 옵티마이저, 편집 헬퍼, 메인 DOM 흐름, CSS 계약, 브라우저 스모크 스크립트 테스트를 이번 동작 기준으로 갱신했습니다.
 
 ## 사용 방법
 
 1. `유저 이름 / 탱커 티어 / 딜러 티어 / 힐러 티어` 4열을 가진 10명 표를 붙여넣습니다.
    - 헤더 행은 있어도 되고 없어도 됩니다.
-2. `팀 나누기`를 누르면 후보 6개가 표시됩니다.
-3. 후보 카드에서 `팀 A 총점`, `팀 B 총점`, `점수 차이`, `역할군 차이 합`, `탱커 차이`, `언랭 차이`를 비교합니다.
-4. 원하는 후보를 클릭해 아래 상세 `팀 A / 팀 B` 배정 결과를 확인합니다.
+2. `팀 나누기`를 누르면 후보 6개가 압축 미리보기 카드로 표시됩니다.
+3. 원하는 후보 카드를 클릭하면 아래 최종 편집 영역으로 새로 로드됩니다.
+4. 바꾸고 싶은 슬롯 두 개를 순서대로 클릭하면 두 플레이어가 서로 교체됩니다.
+5. 스왑 뒤 이름과 티어 색상은 즉시 갱신됩니다.
 
 ## 검증 기록
 
@@ -23,19 +28,11 @@
 - 실행: `npm run build`
   - 결과: 통과, `dist/` 정적 번들 생성 확인
 - 실행: `for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v "$name" || true; done`
-  - 결과: Chromium 계열 브라우저 경로를 찾지 못해서 `npm run test:browser` 는 이번 샌드박스에서 실행하지 않았습니다.
-- 실행: `node --input-type=module -e "import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const sample = await readFile('./src/fixtures/samplePlayers.tsv', 'utf8'); const headerless = sample.split('\n').slice(1).join('\n'); for (const [label, text] of [['header', sample], ['headerless', headerless]]) { const balance = buildBalanceFromClipboard(text, { rng: () => 0.5 }); console.log(label, balance.players.length, balance.candidates.length, balance.candidateCount, balance.result.scoreDifference, balance.result.roleScoreDifferenceSum, balance.result.tankScoreDifference, balance.result.unrankedDifference, balance.result.teams.map((team) => team.totalScore).join('/')); }"`
-  - 결과: `header 10 6 113400 0 0 0 0 14/14`
-  - 결과: `headerless 10 6 113400 0 0 0 0 14/14`
-
-## 가정
-
-- 역할군 차이 합은 `탱커/딜러/힐러` 배정 점수 차이 절대값의 합으로 계산했습니다.
-- 언랭 분배 차이는 양 팀 전체 언랭 배정 인원 수 차이로 계산했습니다.
-- 동률 후보 무작위화는 앞선 4개 지표가 모두 같은 경우에만 적용되며, 테스트에서는 주입한 RNG로 고정 검증했습니다.
+  - 결과: Chromium 계열 브라우저 경로를 찾지 못해 `npm run test:browser` 는 이번 샌드박스에서 실행하지 않았습니다.
 
 ## 남은 제한
 
-- 실제 브라우저 엔진으로 `dist/` 결과를 확인하는 `npm run test:browser` 는 브라우저 바이너리가 없는 현재 환경에서 실행하지 못했습니다.
-- 브라우저 스모크 스크립트는 빌드된 JS/CSS를 임시 HTML 하네스에 올려 검증하는 방식이라, 실제 `dist/index.html` 진입 자체를 대체하지는 않습니다.
+- 실제 브라우저 엔진 기준 스모크 테스트는 Chromium 계열 브라우저가 있는 환경에서 추가 실행이 필요합니다.
+- 현재 브라우저 스모크 스크립트는 빌드된 JS/CSS 를 임시 셸에서 검증하며, 실제 배포 HTML 엔트리포인트 검증은 후속 환경에서 보강할 수 있습니다.
+- 이번 스펙 기준으로는 이전 브라우저/모바일 실기기 검증 공백을 blocker 로 취급하지 않았습니다.
 - 역할 선호도, 저장 기능, 다른 게임 확장은 여전히 범위 밖입니다.

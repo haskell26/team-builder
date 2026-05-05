@@ -1,4 +1,5 @@
 import { EXPECTED_HEADERS, MAX_PLAYERS, ROLE_ORDER, normalizeTier } from '../config/gameConfig.js';
+import { normalizePlayerId } from './playerIdentity.js';
 
 const ROLE_HEADER_MAP = {
   tank: '탱커 티어',
@@ -17,7 +18,7 @@ function splitClipboardLine(line) {
 }
 
 function normalizePlayerName(name) {
-  return name.trim().toLowerCase();
+  return normalizePlayerId(name);
 }
 
 function buildTierSnapshot(rawValue) {
@@ -80,6 +81,7 @@ export function parseClipboard(rawText) {
     const cells = splitClipboardLine(row.line);
     const name = cells[HEADER_COLUMN_INDEX['유저 이름']] ?? '';
     const player = {
+      id: normalizePlayerName(name),
       name,
       sourceRow: rowNumber,
       roles: {

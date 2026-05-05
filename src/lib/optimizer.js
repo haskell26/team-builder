@@ -1,4 +1,5 @@
 import { ROLE_ORDER, getRoleConfig } from '../config/gameConfig.js';
+import { getPlayerId } from './playerIdentity.js';
 
 const SLOT_ORDER = ['tank', 'damage', 'damage', 'support', 'support'];
 
@@ -22,6 +23,7 @@ function createAssignment(player, role) {
   const roleConfig = getRoleConfig(role);
 
   return {
+    playerId: getPlayerId(player),
     playerName: player.name,
     sourceRow: player.sourceRow,
     assignedRole: role,
@@ -32,6 +34,36 @@ function createAssignment(player, role) {
     score: tier.score,
     isUnranked: tier.isUnranked,
   };
+}
+
+function buildTeamSlots(assignments, teamId, teamLabel) {
+  const slotCounts = {
+    tank: 0,
+    damage: 0,
+    support: 0,
+  };
+
+  return assignments.map((assignment) => {
+    slotCounts[assignment.assignedRole] += 1;
+
+    return {
+      id: `${teamId}-${assignment.assignedRole}-${slotCounts[assignment.assignedRole]}`,
+      teamId,
+      teamLabel,
+      role: assignment.assignedRole,
+      roleLabel: assignment.roleLabel,
+      roleShortLabel: getRoleConfig(assignment.assignedRole).shortLabel,
+      slotIndex: slotCounts[assignment.assignedRole],
+      playerId: assignment.playerId,
+      playerName: assignment.playerName,
+      tierKey: assignment.tierKey,
+      tierLabel: assignment.tierLabel,
+      tierDescription: assignment.tierDescription,
+      score: assignment.score,
+      isUnranked: assignment.isUnranked,
+      sourceRow: assignment.sourceRow,
+    };
+  });
 }
 
 function getRoleSortIndex(role) {
@@ -77,6 +109,7 @@ function buildTeamSummary(rawAssignments, id, label) {
     id,
     label,
     assignments,
+    slots: buildTeamSlots(assignments, id, label),
     totalScore,
     unrankedCount,
     roleTotals,

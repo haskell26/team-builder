@@ -89,25 +89,50 @@ export function createHarnessHtml({ fixtureText, mainModuleUrl, styles, viewport
           throw new Error('앱 초기 렌더링이 완료되지 않았습니다.');
         }
 
+        Math.random = () => 0.5;
         textarea.value = fixtureText;
         textarea.dispatchEvent(new Event('input', { bubbles: true }));
         balanceButton.click();
         await waitForPaint();
 
-        const readSummaryValue = (key) =>
-          (document.querySelector('[data-summary-key="' + key + '"] strong')?.textContent || '').trim();
         const candidateCards = [...document.querySelectorAll('.candidate-card')];
-        const teamColumns = [...document.querySelectorAll('.team-column')];
+        const miniSlots = [...document.querySelectorAll('.mini-slot-card')];
+        const editorTeams = [...document.querySelectorAll('.editor-team-column')];
+        const firstSlot = document.querySelector('#editor-slot-A-tank-1');
+        const secondSlot = document.querySelector('#editor-slot-B-support-2');
 
         output.feedbackText = (document.querySelector('#feedback-panel')?.textContent || '').trim();
         output.previewText = (document.querySelector('#preview-panel')?.textContent || '').trim();
         output.resultText = (document.querySelector('#result-content')?.textContent || '').trim();
         output.candidateCountVisible = candidateCards.length;
-        output.teamCount = teamColumns.length;
-        output.assignmentsPerTeam = teamColumns.map((column) => column.querySelectorAll('.assignment-card').length);
-        output.unrankedAssignments = document.querySelectorAll('.assignment-card-unranked').length;
-        output.scoreDifference = Number.parseInt(readSummaryValue('score-difference'), 10);
-        output.unrankedDifference = Number.parseInt(readSummaryValue('unranked-difference'), 10);
+        output.miniSlotCount = miniSlots.length;
+        output.editorTeamCount = editorTeams.length;
+        output.editorSlotsPerTeam = editorTeams.map((column) => column.querySelectorAll('.editor-slot-button').length);
+        output.hasScoreLabels = /팀 A 총점|팀 B 총점|점수 차이|역할군 차이 합|탱커 차이|언랭 분배 차이/.test(
+          output.resultText,
+        );
+        output.swapTargetsReady = Boolean(firstSlot && secondSlot);
+        output.beforeSwap = {
+          firstName: firstSlot?.querySelector('.editor-slot-name')?.textContent?.trim() || '',
+          firstTier: firstSlot?.querySelector('.editor-slot-tier')?.textContent?.trim() || '',
+          secondName: secondSlot?.querySelector('.editor-slot-name')?.textContent?.trim() || '',
+          secondTier: secondSlot?.querySelector('.editor-slot-tier')?.textContent?.trim() || '',
+        };
+        firstSlot?.click();
+        await waitForPaint();
+        output.firstSelectionHighlighted = Boolean(document.querySelector('#editor-slot-A-tank-1.editor-slot-selected'));
+        output.guideAfterFirstSelection = (document.querySelector('.editor-guide')?.textContent || '').trim();
+        secondSlot?.click();
+        await waitForPaint();
+        const refreshedFirstSlot = document.querySelector('#editor-slot-A-tank-1');
+        const refreshedSecondSlot = document.querySelector('#editor-slot-B-support-2');
+        output.afterSwap = {
+          firstName: refreshedFirstSlot?.querySelector('.editor-slot-name')?.textContent?.trim() || '',
+          firstTier: refreshedFirstSlot?.querySelector('.editor-slot-tier')?.textContent?.trim() || '',
+          secondName: refreshedSecondSlot?.querySelector('.editor-slot-name')?.textContent?.trim() || '',
+          secondTier: refreshedSecondSlot?.querySelector('.editor-slot-tier')?.textContent?.trim() || '',
+        };
+        output.guideAfterSwap = (document.querySelector('.editor-guide')?.textContent || '').trim();
         output.documentScrollWidth = document.documentElement.scrollWidth;
         output.bodyScrollWidth = document.body.scrollWidth;
         output.pageShellScrollWidth = document.querySelector('.page-shell')?.scrollWidth ?? null;
@@ -116,7 +141,7 @@ export function createHarnessHtml({ fixtureText, mainModuleUrl, styles, viewport
         output.previewHasSampleName = output.previewText.includes('하늘방패');
         output.resultHasCandidateList = output.resultText.includes('추천 후보 6개');
         output.resultHasTeamLabels = output.resultText.includes('팀 A') && output.resultText.includes('팀 B');
-        output.feedbackLooksSuccessful = output.feedbackText.includes('검증과 계산이 완료되었습니다');
+        output.feedbackLooksSuccessful = output.feedbackText.includes('계산이 끝났습니다');
       } catch (error) {
         output.error = error instanceof Error ? error.message : String(error);
       }
@@ -149,24 +174,24 @@ export function assertViewportResult(result, viewport) {
     issues.push(result.error);
   }
 
-  if (result.teamCount !== 2) {
-    issues.push(`팀 개수가 2가 아닙니다: ${result.teamCount}`);
+  if (result.editorTeamCount !== 2) {
+    issues.push(`편집 팀 개수가 2가 아닙니다: ${result.editorTeamCount}`);
   }
 
   if (result.candidateCountVisible !== 6) {
     issues.push(`보이는 후보 개수가 6개가 아닙니다: ${result.candidateCountVisible}`);
   }
 
-  if (!Array.isArray(result.assignmentsPerTeam) || result.assignmentsPerTeam.some((count) => count !== 5)) {
-    issues.push(`각 팀 인원 수가 5명이 아닙니다: ${JSON.stringify(result.assignmentsPerTeam)}`);
+  if (result.miniSlotCount !== 60) {
+    issues.push(`압축 미리보기 슬롯 수가 60개가 아닙니다: ${result.miniSlotCount}`);
   }
 
-  if (result.scoreDifference !== 0) {
-    issues.push(`샘플 데이터 점수 차이가 0이 아닙니다: ${result.scoreDifference}`);
+  if (!Array.isArray(result.editorSlotsPerTeam) || result.editorSlotsPerTeam.some((count) => count !== 5)) {
+    issues.push(`편집 영역 슬롯 수가 팀당 5개가 아닙니다: ${JSON.stringify(result.editorSlotsPerTeam)}`);
   }
 
-  if (result.unrankedDifference !== 0) {
-    issues.push(`샘플 데이터 언랭 분배 차이가 0이 아닙니다: ${result.unrankedDifference}`);
+  if (result.hasScoreLabels) {
+    issues.push('메인 결과 UI 에 점수 관련 라벨이 남아 있습니다.');
   }
 
   if (!result.previewHasSampleName) {
@@ -183,6 +208,32 @@ export function assertViewportResult(result, viewport) {
 
   if (!result.feedbackLooksSuccessful) {
     issues.push('성공 상태 피드백 문구가 렌더링되지 않았습니다.');
+  }
+
+  if (!result.swapTargetsReady) {
+    issues.push('스왑 대상으로 사용할 슬롯 버튼을 찾지 못했습니다.');
+  }
+
+  if (!result.firstSelectionHighlighted) {
+    issues.push('첫 슬롯 선택 상태가 시각적으로 표시되지 않았습니다.');
+  }
+
+  if (!result.guideAfterFirstSelection.includes('선택했습니다')) {
+    issues.push(`첫 슬롯 선택 안내 문구가 예상과 다릅니다: ${result.guideAfterFirstSelection}`);
+  }
+
+  if (result.beforeSwap.firstName === result.afterSwap.firstName || result.beforeSwap.secondName === result.afterSwap.secondName) {
+    issues.push('두 번째 클릭 후 슬롯 플레이어가 실제로 교체되지 않았습니다.');
+  }
+
+  if (result.afterSwap.firstTier !== '마스터' || result.afterSwap.secondTier !== '마스터') {
+    issues.push(
+      `교차 역할 스왑 뒤 티어 표시가 기대와 다릅니다: ${result.afterSwap.firstTier} / ${result.afterSwap.secondTier}`,
+    );
+  }
+
+  if (!result.guideAfterSwap.includes('스왑이 적용되었습니다')) {
+    issues.push(`스왑 완료 안내 문구가 예상과 다릅니다: ${result.guideAfterSwap}`);
   }
 
   if (result.hasHorizontalOverflow) {

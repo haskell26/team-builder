@@ -8,19 +8,19 @@ export const ROLE_CONFIG = {
   tank: {
     key: 'tank',
     label: '탱커',
-    shortLabel: 'TANK',
+    shortLabel: '탱',
     accentClass: 'role-badge-tank',
   },
   damage: {
     key: 'damage',
     label: '딜러',
-    shortLabel: 'DPS',
+    shortLabel: '딜',
     accentClass: 'role-badge-damage',
   },
   support: {
     key: 'support',
     label: '힐러',
-    shortLabel: 'SUP',
+    shortLabel: '힐',
     accentClass: 'role-badge-support',
   },
 };
@@ -121,7 +121,8 @@ export function formatScore(score) {
 
 export function getTierGuideRows() {
   return TIER_DEFINITIONS.map((tier) => ({
+    key: tier.key,
     label: tier.description === '언랭' ? 'U / 언랭' : tier.description,
-    score: formatScore(tier.score),
+    sample: tier.description,
   }));
 }

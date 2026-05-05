@@ -1,115 +1,125 @@
 {
   "project_name": "Team Builder",
-  "summary": "Extend the existing frontend-only Korean Team Builder app rather than rebuilding it. The current baseline already supports Excel paste input, validation, preview, and one best-team result. This iteration adds six ranked candidate combinations, optional header-row parsing, stronger role-group balance ranking with explicit tank priority, and a selectable candidate-detail UI. Existing unresolved real-browser/mobile QA remains documented but is not a blocker for this round.",
+  "summary": "Build on the current static frontend baseline rather than restarting it. The app already supports Excel paste input, optional headers, ranked candidate generation, and candidate selection. This round should preserve that logic, keep score calculations internal, replace the score-heavy result UI with compact tier-colored previews, and add a selected-candidate swap editor with immediate two-click updates. The older browser/mobile QA gap remains documented but is not a blocker for this iteration.",
   "milestones": [
     {
-      "title": "Input Contract Update",
-      "objective": "Support both header and no-header paste formats without regressing the current validation and preview flow.",
+      "title": "Editable Result Model",
+      "objective": "Refactor the current candidate/result data so the UI can render compact previews and perform role-slot-based swaps without breaking the existing optimizer.",
       "deliverables": [
-        "Update `src/lib/parseClipboard.js` so the first non-empty row is treated as a header only when it matches the canonical Korean columns `유저 이름 / 탱커 티어 / 딜러 티어 / 힐러 티어`; otherwise treat it as player data.",
-        "Keep the existing 10-player, duplicate-name, empty-cell, and unsupported-tier validation rules, but make row-number reporting correct in both modes: header-present input should keep spreadsheet row numbers, and headerless input should start from row 1.",
-        "Leave the normalized player shape unchanged enough that the existing preview table and optimizer can still consume it with minimal refactor.",
-        "Update Korean UI copy in `src/constants/copy.js` and the input help text in `src/lib/render.js` to state clearly that the header row is optional.",
-        "Add parser tests covering: valid input with header, valid input without header, malformed pseudo-header rows, and validation errors in both modes."
+        "Keep `src/lib/optimizer.js` ranking behavior and candidate generation rules unchanged in priority order: total score difference, role-score-difference sum, tank score difference, then unranked difference.",
+        "Extend the candidate/result shape so each visible slot has a stable slot id, fixed slot role, and linked player identity; do not rely on pre-rendered score text for UI state.",
+        "Add a small pure helper module such as `src/lib/editor.js` or equivalent for: creating an editable copy from a candidate, selecting a slot, swapping two slots, and rebuilding display assignments from the destination slot role.",
+        "Preserve internal metric fields on candidates/results so tests can still verify ranking logic even though the main UI stops showing score numbers.",
+        "Keep parser behavior intact, including header-present and headerless input support, duplicate-name validation, and Korean error messages."
       ]
     },
     {
-      "title": "Candidate Ranking Engine",
-      "objective": "Refactor the optimizer so it produces six distinct ranked candidate team splits using the new tie-break rules while preserving the current single-best recommendation behavior.",
+      "title": "Compact Preview UI",
+      "objective": "Turn the current metric-heavy candidate area into a fast visual comparison surface that shows both teams and role placement at a glance.",
       "deliverables": [
-        "Extend `src/lib/optimizer.js` to compute a richer candidate object for each distinct team split: both teams, total score difference, per-role team totals, role-score-difference sum, tank-score difference, unranked difference, and a canonical dedupe key.",
-        "Define `role-score-difference sum` as `abs(tank diff) + abs(damage diff) + abs(support diff)` using the assigned-role scores in the final candidate.",
-        "Deduplicate equivalent team pairings before ranking so the top six are six distinct candidate combinations, not repeated copies caused by enumeration order.",
-        "Implement ranking in this exact order: `1) total score difference asc`, `2) role-score-difference sum asc`, `3) tank-score difference asc`, `4) unranked difference asc`, `5) random order only inside groups that are identical on the first four metrics`.",
-        "Keep the old best-result flow by exposing a helper such as `getTopCandidates(players, { limit, rng })` and making `optimizeTeams(players)` return the first ranked candidate plus metadata for backward compatibility.",
-        "Inject the random function instead of calling `Math.random` directly inside ranking logic so tests can force deterministic order for full ties."
+        "Update `src/lib/render.js`, `src/constants/copy.js`, and `src/styles.css` so the candidate list renders 6 compact preview cards, each with `팀 A` and `팀 B` mini layouts showing `1탱 2딜 2힐` slot placement.",
+        "Show each player with tier-driven visual styling using the required color mapping: unranked white, bronze bronze, silver silver, gold yellow, platinum mint, diamond blue, master green, grandmaster violet.",
+        "Move tier presentation to names/chips/backgrounds instead of numeric score text; remove visible personal score, team total score, and numeric score-difference display from the main UI.",
+        "Keep candidate ordering implicit through card order and default recommendation styling; the first ranked candidate must still appear as the default selected option.",
+        "Retain the existing input preview section but remove score numbers there as well, so the main UI consistently treats scores as hidden internal data."
       ]
     },
     {
-      "title": "Candidate Selection UI",
-      "objective": "Show six candidate summaries and let the user inspect one candidate in detail without making the UX complicated.",
+      "title": "Final Swap Editor",
+      "objective": "Load the selected candidate into a single editable board and allow direct two-click swapping between slots with immediate rerender.",
       "deliverables": [
-        "Update app state in `src/main.js` and `src/lib/appFlow.js` to store `candidates`, `selectedCandidateId`, and the currently selected detail result; compute candidates once on `팀 나누기` and default-select the first ranked candidate.",
-        "Update `src/lib/render.js` to add a compact Korean candidate list section with six clickable cards or buttons labeled clearly, for example `후보 1` to `후보 6`, with the first candidate visually marked as the recommended default.",
-        "Each candidate summary must show at minimum: team A total, team B total, total score difference, role-score-difference sum, tank-score difference, and unranked difference.",
-        "Keep the existing detailed team board concept, but make it render the currently selected candidate so the user can inspect `팀 A / 팀 B`, assigned roles, tier labels, scores, and totals for the chosen option.",
-        "Clicking a candidate must update only the selected detail view and selected styling immediately, without clearing the pasted input or rerunning validation.",
-        "Adjust `src/styles.css` so the added candidate list remains readable on desktop and narrow widths, but do not spend the round on new browser-qa-only work beyond keeping the layout sane."
+        "Add editor state in `src/main.js` and `src/lib/appFlow.js` for at least `selectedCandidateId`, editable team data, and `selectedSwapSlotId`.",
+        "When the user clicks a candidate preview, load a fresh editable copy of that candidate into the final edit area and clear any previous pending slot selection.",
+        "Render the final edit area as one selected candidate only, with larger clickable slot cards/buttons for both teams; each slot must clearly show role and tier-colored player identity.",
+        "Implement the interaction rule exactly: first slot click marks selected state, second slot click swaps the two players, and the DOM updates immediately without rerunning clipboard parsing.",
+        "Make swaps slot-based, not role-based ownership-based: if a player moves into a new slot, that slot’s role applies and the displayed tier metadata must be recalculated from that player’s tier for the new role.",
+        "Allow swaps across teams and across different roles while preserving the fixed team slot structure of `1탱 2딜 2힐` per team.",
+        "Show short Korean helper text for the current interaction state, for example neutral guidance, first-slot-selected guidance, and post-swap completion guidance."
       ]
     },
     {
       "title": "Verification And Handoff",
-      "objective": "Lock the new behavior with automated checks and update project docs so the next agent or reviewer can verify the feature quickly.",
+      "objective": "Lock the new behavior with deterministic tests and leave clear documentation for the next agent or reviewer.",
       "deliverables": [
-        "Expand `test/optimizer.test.js` with fixtures that prove ordering by total score difference, then role-score-difference sum, then tank-score difference, then unranked difference.",
-        "Add a full-tie optimizer test that injects a fake RNG and verifies randomization happens only within an exact-tie metric bucket.",
-        "Expand `test/appFlow.test.js` so the DOM flow asserts six candidates render, the first one is selected by default, and clicking another candidate updates the detailed team output immediately.",
-        "Keep `npm test` and `npm run build` as mandatory checks for this round; treat `npm run test:browser` as optional evidence only when a Chromium-family browser is available.",
-        "Update `README.md` with the optional-header input rule, six-candidate ranking logic, and the user flow for selecting a candidate.",
-        "Update `FINAL_OUTPUT.md` with implemented scope, explicit assumptions, exact verification commands run, and a note that unresolved real-browser/mobile evidence is still non-blocking in this iteration."
+        "Extend `test/optimizer.test.js` so ranking assertions still prove the required sort order after the UI refactor.",
+        "Add focused unit tests for the new editor helper logic, especially cross-role swaps where displayed tier data must change with the destination slot.",
+        "Expand `test/appFlow.test.js` to cover: 6 compact candidates render, first candidate auto-loads into the final editor, candidate switching resets the editor to the newly selected candidate, first slot selection is highlighted, and second click swaps players immediately.",
+        "Add or update CSS-focused tests so the required tier color classes/tokens exist and the compact preview/editor layouts remain stacked and overflow-safe on narrow widths.",
+        "Run `npm test` and `npm run build` as mandatory verification. Keep `npm run test:browser` optional evidence only when a Chromium-family browser is available, and document clearly if it was skipped.",
+        "Update `README.md` and `FINAL_OUTPUT.md` to describe the compact preview workflow, swap editing behavior, score-hidden UI rule, and the non-blocking status of the older real-browser/mobile QA gap."
       ]
     }
   ],
   "acceptance_criteria": [
-    "Given the same valid 10-player roster, pasting it with the canonical header row or without any header row both succeed and produce candidate results instead of validation errors.",
-    "After clicking `팀 나누기` on a valid 10-player roster, exactly 6 distinct candidate combinations are shown.",
-    "Every candidate combination contains exactly 2 teams of 5 players, each team has `1탱 2딜 2힐`, and no player appears more than once within the candidate.",
-    "Each candidate summary shows team A and team B totals, absolute total score difference, role-score-difference sum, tank-score difference, and unranked difference in Korean UI.",
-    "Candidate ordering follows the required priority: total score difference first, then role-score-difference sum, then tank-score difference, then unranked difference.",
-    "When multiple candidates are identical on all four ranking metrics, only that tied group is randomized; with an injected test RNG, the order is reproducible.",
-    "The first ranked candidate is selected by default and displayed in the detailed team board, preserving the existing single-best recommendation flow.",
-    "When the user clicks another candidate, the detailed `팀 A / 팀 B` composition updates immediately without page reload and without clearing the pasted input.",
-    "Headerless invalid input and header-based invalid input both still return clear Korean validation messages for wrong player count, duplicate names, empty cells, and unsupported tiers.",
-    "`README.md` and `FINAL_OUTPUT.md` describe the new six-candidate feature, the optional-header rule, and the actual verification scope for this iteration."
+    "Given the same valid 10-player input, the app shows exactly 6 distinct candidate combinations.",
+    "Each candidate preview is compact and shows both `팀 A` and `팀 B` with 5 visible role slots each.",
+    "Every candidate still satisfies `1탱 2딜 2힐` per team and does not duplicate any player within that candidate.",
+    "Candidate ordering still follows the required internal ranking priority: total score difference, role-score-difference sum, tank score difference, then unranked difference.",
+    "The first ranked candidate is selected by default and loaded into the final edit area immediately after calculation.",
+    "Candidate previews visually distinguish tiers with the required color mapping for all 8 tiers.",
+    "The main app UI does not show personal score values, team total scores, or numeric score-difference values by default.",
+    "Clicking a different candidate updates only the final edit area and does not clear the pasted input.",
+    "On the first slot click in the final edit area, that slot shows a selected state.",
+    "On the second slot click, the two selected slots swap players immediately and the updated names/tier styling are visible without page reload.",
+    "Cross-role swaps use the destination slot’s role when displaying the moved player’s tier information.",
+    "Selecting another candidate after making swaps replaces the editor with a fresh copy of that candidate and clears the previous swap selection.",
+    "Header-present input and headerless input both continue to parse correctly.",
+    "`npm test` and `npm run build` pass on the final workspace state."
   ],
   "test_strategy": [
-    "Unit-test `parseClipboard` with four fixtures: valid with header, valid without header, malformed first row that should be treated as player data, and invalid data in both modes.",
-    "Unit-test optimizer ranking with purpose-built fixtures where only one tie-break level changes at a time: total score difference, then role-score-difference sum, then tank-score difference, then unranked difference.",
-    "Add a dedupe test that confirms the top six candidates are unique by canonical team-pair key.",
-    "Add a full-tie test that passes a stub RNG into the candidate-ranking function so exact-tie ordering can be asserted without flaky tests.",
-    "Extend the DOM app-flow test to cover candidate list rendering, default selection, candidate switching, and preserved input text after selection changes.",
-    "Run `npm test` and `npm run build` before handoff; run `npm run test:browser` only if a Chromium-family browser is present, and record clearly whether it was executed or skipped."
+    "Keep the existing parser tests for optional-header handling and validation errors; they should continue passing unchanged or with only copy updates.",
+    "Add pure unit tests for the new editable-candidate helper: initial slot mapping, first-slot selection state, same-team swap, cross-team swap, and cross-role swap with recomputed tier metadata.",
+    "Keep optimizer tests focused on ranking correctness and candidate uniqueness so UI refactoring cannot silently change balancing behavior.",
+    "Expand the fake-DOM app-flow test to assert that score text is absent from the rendered result UI while candidate cards, editor cards, and swap interactions still work.",
+    "Add CSS or render-contract tests for the eight tier color classes/tokens and for mobile-safe grid stacking of compact previews and the final editor.",
+    "Run `npm test` and `npm run build` before handoff; run `npm run test:browser` only if a supported browser exists, and record whether it ran or was skipped."
   ],
   "risks": [
     {
-      "risk": "The optimizer may produce duplicate candidate rows because multiple enumeration paths can map to the same final team pairing.",
-      "mitigation": "Canonicalize team order, generate a stable dedupe key per pairing, store candidates in a `Map`, and test that the returned top six have unique keys."
+      "risk": "A swap implementation that only exchanges rendered assignment objects will show the wrong tier after cross-role swaps.",
+      "mitigation": "Store player identity separately from slot role and rebuild displayed assignment data from the destination slot role every time a swap occurs."
     },
     {
-      "risk": "Random tie-breaking can make automated tests flaky and can accidentally disturb non-tied ranking order.",
-      "mitigation": "Sort deterministically on the first four metrics, randomize only inside exact-tie buckets, and inject the RNG function so tests can use a fixed stub."
+      "risk": "Removing visible score numbers can accidentally break the current candidate UI and tests because the existing render layer is score-centric.",
+      "mitigation": "Keep all scoring metrics in the candidate/result model, refactor tests to validate ranking in logic tests, and rewrite UI tests around structure, selection, and swap behavior instead of visible scores."
     },
     {
-      "risk": "Optional header detection can misclassify the first player row as a header and silently drop a player.",
-      "mitigation": "Use strict header detection against the exact canonical Korean column names and add regression tests for headerless input whose first row contains normal player data."
+      "risk": "Compact preview cards can become too dense and overflow on narrow screens once both teams and 10 slots are shown.",
+      "mitigation": "Use a strict mini-slot layout with CSS grid, wrap-safe text, and responsive stacking, then lock it with existing style tests plus new compact-preview checks."
     },
     {
-      "risk": "Adding six candidates can make the result UI crowded and harder to scan than the current single-result board.",
-      "mitigation": "Keep summaries compact, show detailed rosters for only the selected candidate, and default-select the first recommendation instead of rendering six full boards at once."
+      "risk": "Manual edits can become confusing if users switch candidates and the app mixes old edited state with a newly selected candidate.",
+      "mitigation": "Define one clear rule: candidate selection always loads a fresh editable copy and clears pending swap state, then cover that rule in DOM tests and README copy."
     },
     {
-      "risk": "Refactoring the optimizer for candidates can break the existing single-best result behavior that current tests and UI rely on.",
-      "mitigation": "Preserve a backward-compatible `optimizeTeams` entrypoint backed by the new ranked-candidate function and keep existing best-result assertions in the test suite."
+      "risk": "The required white unranked color can lose contrast against the existing light UI theme.",
+      "mitigation": "Use white as the primary fill but add explicit border, shadow, and readable text colors so the chip/card remains distinguishable."
     },
     {
-      "risk": "The unresolved browser/mobile QA items from earlier rounds could distract implementation time away from the higher-priority candidate feature.",
-      "mitigation": "Treat real-browser verification as non-blocking this round, keep automated DOM/build coverage current, and document the remaining browser evidence gap honestly in handoff docs."
+      "risk": "The repository still contains older round documentation and UI language that explicitly shows scores, which can mislead a junior builder.",
+      "mitigation": "Treat the user-provided iteration-3 spec as the active scope for this pass and update README/FINAL_OUTPUT so the shipped behavior and docs match the new score-hidden requirement."
+    },
+    {
+      "risk": "Older real-browser/mobile QA findings may distract implementation even though this iteration marks them non-blocking.",
+      "mitigation": "Do not spend this round reopening browser-only work beyond keeping automated checks green; document the remaining QA gap honestly instead of treating it as feature scope."
     }
   ],
   "definition_of_done": [
-    "The existing paste, validation, preview, and single-best-result workflow still works, with the first ranked candidate acting as the default recommendation.",
-    "The app accepts both header-present and headerless Excel-style paste input.",
-    "The app produces 6 distinct candidate combinations ranked by total score difference, role-score-difference sum, tank-score difference, and unranked difference, with randomization only for full ties.",
-    "The user can click any candidate and immediately inspect its detailed team composition in Korean.",
-    "Automated tests cover parser mode detection, optimizer ranking, candidate uniqueness, and candidate-selection UI behavior.",
-    "`npm test` and `npm run build` pass for the final workspace state.",
-    "`README.md` and `FINAL_OUTPUT.md` are updated to match the implemented feature set and this round's actual verification scope."
+    "The existing paste, validation, candidate-generation, and default-recommendation flow still works.",
+    "The app renders 6 compact candidate previews that are easy to compare visually without exposing numeric scores.",
+    "The selected candidate loads into one final edit area where players can be swapped by two slot clicks.",
+    "Swaps update the UI immediately and correctly recalculate displayed tier information based on the destination slot role.",
+    "All tier colors follow the specified mapping in the main UI.",
+    "Header-present and headerless Excel-style paste input both still work.",
+    "Automated tests cover ranking, compact preview rendering, tier styling contracts, candidate selection, and swap behavior.",
+    "`README.md` and `FINAL_OUTPUT.md` reflect the new compact preview and swap-edit workflow and accurately describe verification scope for this round."
   ],
   "open_questions": [
-    "Assumption: `role-score-difference sum` means the sum of absolute assigned-role score gaps for `tank`, `damage`, and `support` across the two teams.",
-    "Assumption: `언랭 분배 차이` means the absolute difference in total unranked assigned-role counts between the two teams, not role-specific unranked balancing.",
-    "Assumption: `후보 조합 6개` means 6 distinct final team pairings after canonical deduplication; duplicate partitions from enumeration should not be shown separately.",
-    "Assumption: optional header support only auto-detects the canonical Korean header row; any other first row is treated as player data and validated normally.",
-    "Assumption: real-browser/mobile verification from previous QA remains documented but is intentionally non-blocking for this feature-focused round unless a browser is available to run `npm run test:browser`."
+    "Assumption: the user-provided iteration-3 spec supersedes the older score-visible requirements still present in the current workspace history.",
+    "Assumption: selecting a candidate loads a fresh editable copy of that candidate and discards unsaved swaps from any previously selected candidate.",
+    "Assumption: swaps are allowed between any two visible slots, including cross-team and cross-role swaps.",
+    "Assumption: the \"do not show numeric scores\" rule applies to the main app UI surfaces only; internal calculations and automated tests may still use numeric score fields.",
+    "Assumption: the tier-color requirement can be satisfied with tier-colored chips/cards plus readable text labels, not necessarily by coloring the entire team column.",
+    "Assumption: unresolved real-browser/mobile validation from earlier rounds remains documented but is intentionally non-blocking for this iteration unless a browser is available for optional smoke testing."
   ]
 }

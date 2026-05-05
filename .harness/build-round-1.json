@@ -1,45 +1,45 @@
 {
-  "summary": "Extended the frontend Team Builder app for round 1 with optional-header parsing, six ranked candidate combinations, clickable candidate-detail UI, updated automated coverage, and refreshed README/FINAL_OUTPUT handoff docs.",
+  "summary": "Implemented the round-3 frontend refactor: compact 6-candidate preview cards, score-hidden main UI, and a slot-based final swap editor with immediate cross-role/cross-team updates. Added pure editor helpers, preserved optimizer ranking rules, updated docs, and extended automated coverage.",
   "completed_work": [
-    "Updated `src/lib/parseClipboard.js` to accept header-present or headerless TSV input, only recognize the exact canonical Korean header row, and preserve correct row numbers in both modes.",
-    "Refactored `src/lib/optimizer.js` to compute richer candidate objects, rank distinct combinations by total score difference -> role-score-difference sum -> tank difference -> unranked difference, and randomize only exact metric ties through injected RNG.",
-    "Updated `src/lib/appFlow.js`, `src/main.js`, `src/lib/render.js`, `src/constants/copy.js`, and `src/styles.css` so the app shows six Korean candidate cards, default-selects the first candidate, and swaps only the detailed team board when another candidate is clicked.",
-    "Expanded tests in `test/parseClipboard.test.js`, `test/optimizer.test.js`, `test/appFlow.test.js`, and `test/responsiveLayout.test.js`, and aligned `scripts/browserSmoke.mjs` plus `testing/fakeDom.js` with the new candidate UI.",
-    "Rewrote `README.md` and `FINAL_OUTPUT.md` to document the optional-header rule, six-candidate ranking behavior, actual verification scope, and the remaining non-blocking browser evidence gap."
+    "Refactored result rendering in `src/lib/render.js` and `src/styles.css` to show compact `팀 A / 팀 B` candidate previews, tier-color chips/cards, and a single editable final board without visible numeric score UI.",
+    "Added editable slot state with `src/lib/editor.js`, wired candidate reload and two-click swapping through `src/lib/appFlow.js` and `src/main.js`, and ensured cross-role swaps recompute displayed tier data from the destination slot role.",
+    "Extended candidate data in `src/lib/optimizer.js` with stable slot metadata while preserving ranking priority and existing optimization behavior.",
+    "Kept parser behavior intact in `src/lib/parseClipboard.js`, adding stable player ids for editor mapping while preserving optional-header support and Korean validation.",
+    "Updated browser smoke logic in `scripts/browserSmoke.mjs` for the new UI contract and added/updated tests in `test/editor.test.js`, `test/appFlow.test.js`, `test/optimizer.test.js`, `test/responsiveLayout.test.js`, and `test/browserSmoke.test.js`.",
+    "Rewrote `README.md` and `FINAL_OUTPUT.md` to document the compact preview workflow, score-hidden UI rule, swap editing behavior, and the non-blocking browser verification gap."
   ],
   "verification": [
     {
       "command": "npm test",
-      "result": "Passed. Parser, optimizer, main-entry DOM flow, responsive CSS, and browser smoke helper tests all succeeded."
+      "result": "Passed. 6 test files succeeded, covering parsing, optimizer ranking/uniqueness, editor swap logic, main fake-DOM flow, responsive CSS contract, and browser smoke assertions."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Static bundle rebuilt successfully in `dist/`."
+      "result": "Passed. Static bundle regenerated in `dist/`."
     },
     {
       "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v \"$name\" || true; done",
-      "result": "No Chromium-family browser binary was found in this sandbox, so `npm run test:browser` was skipped."
-    },
-    {
-      "command": "node --input-type=module -e \"import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const sample = await readFile('./src/fixtures/samplePlayers.tsv', 'utf8'); const headerless = sample.split('\\n').slice(1).join('\\n'); for (const [label, text] of [['header', sample], ['headerless', headerless]]) { const balance = buildBalanceFromClipboard(text, { rng: () => 0.5 }); console.log(label, balance.players.length, balance.candidates.length, balance.candidateCount, balance.result.scoreDifference, balance.result.roleScoreDifferenceSum, balance.result.tankScoreDifference, balance.result.unrankedDifference, balance.result.teams.map((team) => team.totalScore).join('/')); }\"",
-      "result": "Confirmed both header and headerless sample input paths produce 10 parsed players, 6 visible candidates, 113400 evaluated combinations, and a selected candidate with `scoreDifference=0`, `roleScoreDifferenceSum=0`, `tankScoreDifference=0`, `unrankedDifference=0`, `teamTotals=14/14`."
+      "result": "No Chromium-family browser binary was available in this sandbox, so `npm run test:browser` was not run."
     }
   ],
   "known_gaps": [
-    "`npm run test:browser` could not be executed here because no Chromium-family browser is installed in the sandbox.",
-    "The browser smoke harness validates built JS/CSS through a temporary HTML shell; it does not literally open `dist/index.html`."
+    "Real browser-engine smoke coverage remains unverified in this sandbox because no Chromium-family browser was installed. This is documented and treated as non-blocking for this round per spec.",
+    "Mobile/real-device validation is still not evidenced beyond automated layout and DOM-contract tests."
   ],
   "handoff_notes": [
-    "This round intentionally prioritized candidate-combination expansion over closing the older real-browser/mobile QA gap, which remains non-blocking per the current spec.",
-    "QA should run `npm run test:browser -- --browser=/path/to/chromium` in a browser-equipped environment if real engine evidence is needed for release.",
-    "`dist/` has been rebuilt and now reflects the candidate-feature changes."
+    "Candidate card clicks now always load a fresh editable copy of that candidate and clear prior swap state; QA should verify that this reset behavior is the intended UX.",
+    "The main UI intentionally hides personal scores, team totals, and numeric score-difference labels; ranking metrics still exist internally for tests and ordering.",
+    "`dist/` was rebuilt after the source changes.",
+    "`.harness/spec.md` and `.harness/plan.json` showed pre-existing worktree modifications and were left untouched."
   ],
   "files_of_interest": [
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/parseClipboard.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/optimizer.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/editor.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/appFlow.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/render.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/optimizer.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/src/main.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/optimizer.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/styles.css",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/editor.test.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
     "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"

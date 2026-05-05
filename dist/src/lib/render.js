@@ -1,5 +1,5 @@
 import { UI_COPY, SAMPLE_FORMAT_LINES } from '../constants/copy.js';
-import { ROLE_ORDER, formatScore, getRoleConfig, getTierGuideRows } from '../config/gameConfig.js';
+import { ROLE_ORDER, getRoleConfig, getTierGuideRows } from '../config/gameConfig.js';
 
 function escapeHtml(value) {
   return value
@@ -10,32 +10,116 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function renderRoleBadge(role) {
-  const config = getRoleConfig(role);
-  return `<span class="role-badge ${config.accentClass}">${config.label}</span>`;
+function getTierClassName(tierKey) {
+  return `tier-${tierKey}`;
 }
 
-function renderTierChip(tier) {
-  return `<span class="tier-chip ${tier.isUnranked ? 'tier-chip-unranked' : ''}">${escapeHtml(
-    tier.description,
-  )} <strong>${formatScore(tier.score)}</strong></span>`;
+function renderRoleBadge(role, { compact = false } = {}) {
+  const config = getRoleConfig(role);
+
+  return `<span class="role-badge ${config.accentClass} ${compact ? 'role-badge-compact' : ''}">${escapeHtml(
+    compact ? config.shortLabel : config.label,
+  )}</span>`;
+}
+
+function renderTierToken(tier) {
+  return `<span class="tier-token tier-fill ${getTierClassName(tier.key)}">${escapeHtml(tier.description)}</span>`;
+}
+
+function renderGuideItem(tier) {
+  return `
+    <li class="guide-list-item">
+      <span class="guide-list-label">${escapeHtml(tier.label)}</span>
+      <span class="tier-token tier-fill ${getTierClassName(tier.key)}">${escapeHtml(tier.sample)}</span>
+    </li>
+  `;
+}
+
+function renderMiniSlot(slot) {
+  return `
+    <div class="mini-slot-card">
+      <div class="mini-slot-top">
+        ${renderRoleBadge(slot.role, { compact: true })}
+        <span class="mini-slot-order">${slot.slotIndex}</span>
+      </div>
+      <strong class="mini-slot-name tier-fill ${getTierClassName(slot.tierKey)}">${escapeHtml(slot.playerName)}</strong>
+      <span class="mini-slot-tier">${escapeHtml(slot.tierDescription)}</span>
+    </div>
+  `;
+}
+
+function renderCandidateTeam(team) {
+  return `
+    <section class="mini-team-column">
+      <p class="mini-team-label">${escapeHtml(team.label)}</p>
+      <div class="mini-slot-grid">
+        ${team.slots.map(renderMiniSlot).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderEditorSlot(slot, selectedSlotId) {
+  const isSelected = slot.id === selectedSlotId;
+
+  return `
+    <button
+      id="editor-slot-${slot.id}"
+      class="editor-slot-button ${isSelected ? 'editor-slot-selected' : ''}"
+      type="button"
+      aria-pressed="${isSelected ? 'true' : 'false'}"
+    >
+      <div class="editor-slot-header">
+        ${renderRoleBadge(slot.role)}
+        <span class="editor-slot-label">${escapeHtml(slot.teamLabel)} ${slot.slotIndex}</span>
+      </div>
+      <strong class="editor-slot-name tier-fill ${getTierClassName(slot.tierKey)}">${escapeHtml(slot.playerName)}</strong>
+      <p class="editor-slot-tier">${escapeHtml(slot.tierDescription)}</p>
+    </button>
+  `;
+}
+
+function renderEditorTeam(team, selectedSlotId) {
+  return `
+    <section class="editor-team-column">
+      <header class="editor-team-header">
+        <p class="editor-team-kicker">최종 편집</p>
+        <h4>${escapeHtml(team.label)}</h4>
+      </header>
+      <div class="editor-slot-grid">
+        ${team.slots.map((slot) => renderEditorSlot(slot, selectedSlotId)).join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderCandidateCard(candidate, index, selectedCandidateId) {
+  const isSelected = candidate.id === selectedCandidateId;
+
+  return `
+    <button
+      id="candidate-button-${index + 1}"
+      class="candidate-card ${isSelected ? 'candidate-card-selected' : ''}"
+      type="button"
+      aria-pressed="${isSelected ? 'true' : 'false'}"
+    >
+      <div class="candidate-card-header">
+        <div>
+          <p class="candidate-kicker">${index === 0 ? '기본 추천' : '비교 후보'}</p>
+          <strong>후보 ${candidate.rank}</strong>
+        </div>
+        <span class="candidate-state">${isSelected ? '편집 중' : '불러오기'}</span>
+      </div>
+      <div class="candidate-compact-grid">
+        ${candidate.teams.map(renderCandidateTeam).join('')}
+      </div>
+    </button>
+  `;
 }
 
 export function renderShell() {
-  const tierGuide = getTierGuideRows()
-    .map(
-      (tier) => `
-        <li class="guide-list-item">
-          <span>${escapeHtml(tier.label)}</span>
-          <strong>${escapeHtml(tier.score)}</strong>
-        </li>
-      `,
-    )
-    .join('');
-
-  const footerList = UI_COPY.footerBullets
-    .map((item) => `<li>${escapeHtml(item)}</li>`)
-    .join('');
+  const tierGuide = getTierGuideRows().map(renderGuideItem).join('');
+  const footerList = UI_COPY.footerBullets.map((item) => `<li>${escapeHtml(item)}</li>`).join('');
 
   return `
     <div class="page-shell">
@@ -47,7 +131,7 @@ export function renderShell() {
             <p class="hero-subtitle">${escapeHtml(UI_COPY.subtitle)}</p>
           </div>
           <div class="hero-score-badge">
-            <span>10명</span>
+            <span>10명 고정 매칭</span>
             <strong>1탱 2딜 2힐</strong>
           </div>
         </div>
@@ -85,8 +169,8 @@ export function renderShell() {
           <pre class="sample-pre">${escapeHtml(SAMPLE_FORMAT_LINES.join('\n'))}</pre>
 
           <div class="section-heading compact-heading">
-            <h2>티어 점수표</h2>
-            <p>${escapeHtml(UI_COPY.resultHint)}</p>
+            <h2>티어 색상 가이드</h2>
+            <p>${escapeHtml(UI_COPY.tierGuideHint)}</p>
           </div>
           <ul class="guide-list">${tierGuide}</ul>
 
@@ -133,11 +217,11 @@ export function renderFeedback(errors, hasText, hasValidPlayers, hasResult) {
   }
 
   if (hasResult) {
-    return '<p class="feedback-success">검증과 계산이 완료되었습니다. 후보를 눌러 상세 팀 구성을 바로 비교해 보세요.</p>';
+    return '<p class="feedback-success">계산이 끝났습니다. 후보를 비교한 뒤 아래 편집 영역에서 바로 스왑할 수 있습니다.</p>';
   }
 
   if (hasValidPlayers) {
-    return '<p class="feedback-success">입력 확인이 끝났습니다. 팀 나누기 버튼을 누르면 바로 계산합니다.</p>';
+    return '<p class="feedback-success">입력 확인이 끝났습니다. 팀 나누기 버튼을 누르면 후보 6개를 계산합니다.</p>';
   }
 
   return '<p class="feedback-neutral">입력 대기 중입니다.</p>';
@@ -151,7 +235,7 @@ export function renderPreview(players) {
   const headerCells = ROLE_ORDER.map((role) => `<th>${escapeHtml(getRoleConfig(role).label)}</th>`).join('');
   const rows = players
     .map((player) => {
-      const tierCells = ROLE_ORDER.map((role) => `<td>${renderTierChip(player.roles[role])}</td>`).join('');
+      const tierCells = ROLE_ORDER.map((role) => `<td>${renderTierToken(player.roles[role])}</td>`).join('');
 
       return `
         <tr>
@@ -179,84 +263,8 @@ export function renderPreview(players) {
   `;
 }
 
-function renderAssignmentCard(assignment) {
-  return `
-    <article class="assignment-card ${assignment.isUnranked ? 'assignment-card-unranked' : ''}">
-      <div class="assignment-top-row">
-        ${renderRoleBadge(assignment.assignedRole)}
-        <span class="assignment-score">${formatScore(assignment.score)}</span>
-      </div>
-      <strong class="assignment-name">${escapeHtml(assignment.playerName)}</strong>
-      <p class="assignment-meta">
-        ${escapeHtml(assignment.tierDescription)}
-        ${assignment.isUnranked ? '<span class="unranked-pill">언랭 배정</span>' : ''}
-      </p>
-    </article>
-  `;
-}
-
-function renderTeamColumn(team) {
-  const assignments = team.assignments.map(renderAssignmentCard).join('');
-
-  return `
-    <section class="team-column">
-      <header class="team-header">
-        <div>
-          <p class="team-label">${escapeHtml(team.label)}</p>
-          <strong class="team-total">${formatScore(team.totalScore)}</strong>
-        </div>
-        <div class="team-meta">
-          <span>언랭 ${team.unrankedCount}명</span>
-          <span>총 ${team.assignments.length}명</span>
-        </div>
-      </header>
-      <div class="assignment-grid">
-        ${assignments}
-      </div>
-    </section>
-  `;
-}
-
-function renderSummaryCard(label, value, key) {
-  return `
-    <article class="summary-card" data-summary-key="${escapeHtml(key)}">
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value)}</strong>
-    </article>
-  `;
-}
-
-function renderCandidateCard(candidate, index, selectedCandidateId) {
-  const isSelected = candidate.id === selectedCandidateId;
-
-  return `
-    <button
-      id="candidate-button-${index + 1}"
-      class="candidate-card ${isSelected ? 'candidate-card-selected' : ''}"
-      type="button"
-      aria-pressed="${isSelected ? 'true' : 'false'}"
-    >
-      <div class="candidate-card-header">
-        <div>
-          <p class="candidate-kicker">${index === 0 ? '기본 추천' : '대안 후보'}</p>
-          <strong>후보 ${candidate.rank}</strong>
-        </div>
-        <span class="candidate-difference">${formatScore(candidate.scoreDifference)} 차이</span>
-      </div>
-      <p class="candidate-team-totals">
-        팀 A ${formatScore(candidate.teams[0].totalScore)} · 팀 B ${formatScore(candidate.teams[1].totalScore)}
-      </p>
-      <div class="candidate-stats">
-        <span>역할군 차이 합 ${formatScore(candidate.roleScoreDifferenceSum)}</span>
-        <span>탱커 차이 ${formatScore(candidate.tankScoreDifference)}</span>
-        <span>언랭 차이 ${candidate.unrankedDifference}명</span>
-      </div>
-    </button>
-  `;
-}
-
-export function renderResult(result, candidates = [], selectedCandidateId = null) {
-  if (!result) {
+export function renderResult({ candidateCount, candidates = [], selectedCandidateId = null, editor, editorGuideText }) {
+  if (!editor) {
     return `<div class="empty-state">${escapeHtml(UI_COPY.emptyResult)}</div>`;
   }
 
@@ -264,7 +272,7 @@ export function renderResult(result, candidates = [], selectedCandidateId = null
     <section class="candidate-section">
       <div class="section-heading result-subsection">
         <h3>추천 후보 6개</h3>
-        <p>전체 ${result.candidateCount.toLocaleString('ko-KR')}개 조합 중 우선순위가 높은 후보만 표시합니다.</p>
+        <p>전체 ${candidateCount.toLocaleString('ko-KR')}개 조합 중 빠르게 비교하기 좋은 상위 후보만 보여줍니다.</p>
       </div>
       <div class="candidate-list">
         ${candidates.map((candidate, index) => renderCandidateCard(candidate, index, selectedCandidateId)).join('')}
@@ -273,23 +281,14 @@ export function renderResult(result, candidates = [], selectedCandidateId = null
 
     <section class="detail-section">
       <div class="section-heading result-subsection">
-        <h3>선택된 후보 ${result.rank}</h3>
-        <p>후보를 바꿔도 입력값과 미리보기는 유지되고, 아래 상세 팀 구성만 즉시 바뀝니다.</p>
+        <h3>선택 후보 ${editor.rank} 편집</h3>
+        <p>후보 카드를 누르면 언제든 새로 불러오며, 이전 스왑 상태는 초기화됩니다.</p>
       </div>
 
-      <div class="result-summary">
-        ${renderSummaryCard('팀 A 총점', formatScore(result.teams[0].totalScore), 'team-a-total')}
-        ${renderSummaryCard('팀 B 총점', formatScore(result.teams[1].totalScore), 'team-b-total')}
-        ${renderSummaryCard('점수 차이', formatScore(result.scoreDifference), 'score-difference')}
-        ${renderSummaryCard('역할군 차이 합', formatScore(result.roleScoreDifferenceSum), 'role-score-difference-sum')}
-        ${renderSummaryCard('탱커 차이', formatScore(result.tankScoreDifference), 'tank-score-difference')}
-        ${renderSummaryCard('언랭 분배 차이', `${result.unrankedDifference}명`, 'unranked-difference')}
-      </div>
+      <p class="editor-guide">${escapeHtml(editorGuideText)}</p>
 
-      <p class="result-note">역할군 차이 합은 탱커, 딜러, 힐러 배정 점수 차이의 절대값을 더한 값입니다.</p>
-
-      <div class="teams-grid">
-        ${result.teams.map(renderTeamColumn).join('')}
+      <div class="editor-grid">
+        ${editor.teams.map((team) => renderEditorTeam(team, editor.selectedSlotId)).join('')}
       </div>
     </section>
   `;

@@ -18,12 +18,14 @@ export interface TierSnapshot {
 }
 
 export interface NormalizedPlayer {
+  id: string;
   name: string;
   sourceRow: number;
   roles: Record<Role, TierSnapshot>;
 }
 
 export interface TeamAssignment {
+  playerId: string;
   playerName: string;
   sourceRow: number;
   assignedRole: Role;
@@ -35,10 +37,29 @@ export interface TeamAssignment {
   isUnranked: boolean;
 }
 
+export interface TeamSlot {
+  id: string;
+  teamId: 'A' | 'B';
+  teamLabel: string;
+  role: Role;
+  roleLabel: string;
+  roleShortLabel: string;
+  slotIndex: number;
+  playerId: string;
+  playerName: string;
+  sourceRow: number;
+  tierKey: string;
+  tierLabel: string;
+  tierDescription: string;
+  score: number;
+  isUnranked: boolean;
+}
+
 export interface TeamSummary {
   id: 'A' | 'B';
   label: string;
   assignments: TeamAssignment[];
+  slots: TeamSlot[];
   totalScore: number;
   unrankedCount: number;
   roleTotals: Record<Role, number>;
@@ -61,4 +82,13 @@ export interface BalanceResult extends BalanceCandidate {
   candidateCount: number;
   displayedCandidateCount: number;
   candidates: BalanceCandidate[];
+}
+
+export interface EditableCandidate {
+  candidateId: string;
+  rank: number;
+  selectedSlotId: string | null;
+  lastAction: 'idle' | 'selected' | 'swapped';
+  playerPool: Record<string, NormalizedPlayer>;
+  teams: TeamSummary[];
 }

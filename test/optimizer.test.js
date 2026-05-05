@@ -62,15 +62,21 @@ test('optimizer preserves 1탱 2딜 2힐 composition and unique players across t
 
   for (const candidate of candidates) {
     const assignments = candidate.teams.flatMap((team) => team.assignments).map((assignment) => assignment.playerName);
+    const slots = candidate.teams.flatMap((team) => team.slots);
 
     assert.equal(candidate.teams.length, 2);
     assert.equal(new Set(assignments).size, 10);
     assert.equal(assignments.length, 10);
+    assert.equal(slots.length, 10);
+    assert.equal(new Set(slots.map((slot) => slot.id)).size, 10);
 
     for (const team of candidate.teams) {
       assert.equal(team.assignments.filter((assignment) => assignment.assignedRole === 'tank').length, 1);
       assert.equal(team.assignments.filter((assignment) => assignment.assignedRole === 'damage').length, 2);
       assert.equal(team.assignments.filter((assignment) => assignment.assignedRole === 'support').length, 2);
+      assert.equal(team.slots.filter((slot) => slot.role === 'tank').length, 1);
+      assert.equal(team.slots.filter((slot) => slot.role === 'damage').length, 2);
+      assert.equal(team.slots.filter((slot) => slot.role === 'support').length, 2);
     }
   }
 });
@@ -96,6 +102,8 @@ test('optimizeTeams keeps the best-candidate flow while exposing ranked candidat
   assert.equal(result.id, result.candidates[0].id);
   assert.equal(result.candidateCount >= result.displayedCandidateCount, true);
   assert.equal(result.displayedCandidateCount, 6);
+  assert.equal(result.teams[0].slots.length, 5);
+  assert.equal(result.teams[1].slots.length, 5);
 });
 
 test('candidate ranking prioritizes total score difference, then role-score sum, then tank difference, then unranked difference', () => {
