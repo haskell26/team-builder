@@ -8,7 +8,7 @@ async function loadSampleFixture() {
   return readFile(new URL('../src/fixtures/samplePlayers.tsv', import.meta.url), 'utf8');
 }
 
-test('main entrypoint wires paste, balance, and reset interactions through the DOM', async (context) => {
+test('main entrypoint renders six candidates, selects the first by default, and updates the detail view on click', async (context) => {
   const sampleFixture = await loadSampleFixture();
   const { document, cleanup } = await loadMainIntoFakeDom();
   context.after(cleanup);
@@ -26,7 +26,7 @@ test('main entrypoint wires paste, balance, and reset interactions through the D
   assert.ok(clearButton);
   assert.match(feedbackPanel.innerHTML, /표를 붙여넣으면 바로 검증 결과와 미리보기가 표시됩니다/);
   assert.match(previewPanel.innerHTML, /입력한 내용이 유효하면/);
-  assert.match(resultPanel.innerHTML, /유효한 10명 데이터를/);
+  assert.match(resultPanel.innerHTML, /후보 6개와 상세 팀 구성이 표시됩니다/);
 
   textarea.value = sampleFixture;
   textarea.dispatchEvent({ type: 'input' });
@@ -37,19 +37,34 @@ test('main entrypoint wires paste, balance, and reset interactions through the D
 
   balanceButton.click();
 
-  assert.match(feedbackPanel.innerHTML, /검증이 완료되었습니다/);
-  assert.match(resultPanel.innerHTML, /점수 차이/);
-  assert.match(resultPanel.innerHTML, /1팀/);
-  assert.match(resultPanel.innerHTML, /2팀/);
+  assert.match(feedbackPanel.innerHTML, /검증과 계산이 완료되었습니다/);
+  assert.match(resultPanel.innerHTML, /추천 후보 6개/);
+  assert.match(resultPanel.innerHTML, /선택된 후보 1/);
+  assert.match(resultPanel.innerHTML, /팀 A 총점/);
+  assert.match(resultPanel.innerHTML, /팀 B 총점/);
+  assert.match(resultPanel.innerHTML, /id="candidate-button-6"/);
+  assert.match(resultPanel.innerHTML, /candidate-card-selected/);
+  assert.match(resultPanel.innerHTML, /팀 A/);
+  assert.match(resultPanel.innerHTML, /팀 B/);
   assert.equal(resultSection.scrolled, true);
   assert.deepEqual(resultSection.scrollArguments, [{ behavior: 'smooth', block: 'start' }]);
+
+  const candidateTwoButton = document.querySelector('#candidate-button-2');
+
+  assert.ok(candidateTwoButton);
+  candidateTwoButton.click();
+
+  assert.equal(textarea.value, sampleFixture);
+  assert.match(resultPanel.innerHTML, /선택된 후보 2/);
+  assert.match(resultPanel.innerHTML, /id="candidate-button-2"/);
+  assert.match(resultPanel.innerHTML, /candidate-card-selected/);
 
   clearButton.click();
 
   assert.equal(textarea.value, '');
   assert.match(feedbackPanel.innerHTML, /표를 붙여넣으면 바로 검증 결과와 미리보기가 표시됩니다/);
   assert.match(previewPanel.innerHTML, /입력한 내용이 유효하면/);
-  assert.match(resultPanel.innerHTML, /유효한 10명 데이터를/);
+  assert.match(resultPanel.innerHTML, /후보 6개와 상세 팀 구성이 표시됩니다/);
 });
 
 test('main entrypoint blocks invalid clipboard data and keeps result empty', async (context) => {
@@ -74,6 +89,6 @@ test('main entrypoint blocks invalid clipboard data and keeps result empty', asy
   assert.match(feedbackPanel.innerHTML, /정확히 10명/);
   assert.match(feedbackPanel.innerHTML, /중복/);
   assert.match(previewPanel.innerHTML, /입력한 내용이 유효하면/);
-  assert.match(resultPanel.innerHTML, /유효한 10명 데이터를/);
+  assert.match(resultPanel.innerHTML, /후보 6개와 상세 팀 구성이 표시됩니다/);
   assert.equal(resultSection.scrolled, false);
 });

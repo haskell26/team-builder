@@ -66,6 +66,12 @@ function buildTeamSummary(rawAssignments, id, label) {
 
   const totalScore = assignments.reduce((sum, assignment) => sum + assignment.score, 0);
   const unrankedCount = assignments.filter((assignment) => assignment.isUnranked).length;
+  const roleTotals = ROLE_ORDER.reduce((totals, role) => {
+    totals[role] = assignments
+      .filter((assignment) => assignment.assignedRole === role)
+      .reduce((sum, assignment) => sum + assignment.score, 0);
+    return totals;
+  }, {});
 
   return {
     id,
@@ -73,6 +79,7 @@ function buildTeamSummary(rawAssignments, id, label) {
     assignments,
     totalScore,
     unrankedCount,
+    roleTotals,
   };
 }
 
@@ -85,28 +92,57 @@ function createCandidate(teamOneAssignments, teamTwoAssignments) {
       : [teamTwoAssignments, teamOneAssignments];
 
   const teams = orderedAssignments.map((assignments, index) =>
-    buildTeamSummary(assignments, index === 0 ? 'A' : 'B', `${index + 1}팀`),
+    buildTeamSummary(assignments, index === 0 ? 'A' : 'B', `팀 ${index === 0 ? 'A' : 'B'}`),
   );
 
   const comparisonKey = teams.map((team) => buildTeamKey(team.assignments)).join('||');
+  const roleScoreDifferences = ROLE_ORDER.reduce((differences, role) => {
+    differences[role] = Math.abs(teams[0].roleTotals[role] - teams[1].roleTotals[role]);
+    return differences;
+  }, {});
   const scoreDifference = Math.abs(teams[0].totalScore - teams[1].totalScore);
+  const roleScoreDifferenceSum = ROLE_ORDER.reduce((sum, role) => sum + roleScoreDifferences[role], 0);
+  const tankScoreDifference = roleScoreDifferences.tank;
   const unrankedDifference = Math.abs(teams[0].unrankedCount - teams[1].unrankedCount);
 
   return {
+    id: comparisonKey,
     teams,
     scoreDifference,
+    roleScoreDifferences,
+    roleScoreDifferenceSum,
+    tankScoreDifference,
     unrankedDifference,
+    candidateKey: comparisonKey,
     comparisonKey,
   };
 }
 
-export function compareBalanceResults(left, right) {
+export function compareCandidateMetrics(left, right) {
   if (left.scoreDifference !== right.scoreDifference) {
     return left.scoreDifference - right.scoreDifference;
   }
 
+  if (left.roleScoreDifferenceSum !== right.roleScoreDifferenceSum) {
+    return left.roleScoreDifferenceSum - right.roleScoreDifferenceSum;
+  }
+
+  if (left.tankScoreDifference !== right.tankScoreDifference) {
+    return left.tankScoreDifference - right.tankScoreDifference;
+  }
+
   if (left.unrankedDifference !== right.unrankedDifference) {
     return left.unrankedDifference - right.unrankedDifference;
+  }
+
+  return 0;
+}
+
+export function compareBalanceResults(left, right) {
+  const metricComparison = compareCandidateMetrics(left, right);
+
+  if (metricComparison !== 0) {
+    return metricComparison;
   }
 
   return left.comparisonKey.localeCompare(right.comparisonKey, 'ko');
@@ -118,7 +154,7 @@ export function enumerateValidAssignments(players) {
   }
 
   const allIndices = players.map((_, index) => index);
-  const candidates = [];
+  const candidates = new Map();
 
   for (const [tankAIndex, tankBIndex] of buildCombinations(allIndices, 2)) {
     const remainingAfterTanks = allIndices.filter((index) => index !== tankAIndex && index !== tankBIndex);
@@ -142,28 +178,88 @@ export function enumerateValidAssignments(players) {
             ...supportBIndices.map((index) => createAssignment(players[index], 'support')),
           ];
 
-          candidates.push(createCandidate(teamOneAssignments, teamTwoAssignments));
+          const candidate = createCandidate(teamOneAssignments, teamTwoAssignments);
+          candidates.set(candidate.candidateKey, candidate);
         }
       }
     }
   }
 
-  return candidates;
+  return [...candidates.values()];
 }
 
-export function optimizeTeams(players) {
-  const candidates = enumerateValidAssignments(players);
-  const bestCandidate = candidates.reduce((currentBest, candidate) => {
-    if (!currentBest) {
-      return candidate;
+function shuffleCandidates(candidates, rng) {
+  const shuffled = [...candidates];
+
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    const current = shuffled[index];
+    shuffled[index] = shuffled[swapIndex];
+    shuffled[swapIndex] = current;
+  }
+
+  return shuffled;
+}
+
+export function rankCandidates(candidates, { rng = Math.random } = {}) {
+  const metricSorted = [...candidates].sort((left, right) => {
+    const metricComparison = compareCandidateMetrics(left, right);
+
+    if (metricComparison !== 0) {
+      return metricComparison;
     }
 
-    return compareBalanceResults(candidate, currentBest) < 0 ? candidate : currentBest;
-  }, null);
+    return left.candidateKey.localeCompare(right.candidateKey, 'ko');
+  });
+  const ranked = [];
+
+  for (let index = 0; index < metricSorted.length; ) {
+    let bucketEndIndex = index + 1;
+
+    while (
+      bucketEndIndex < metricSorted.length &&
+      compareCandidateMetrics(metricSorted[index], metricSorted[bucketEndIndex]) === 0
+    ) {
+      bucketEndIndex += 1;
+    }
+
+    ranked.push(...shuffleCandidates(metricSorted.slice(index, bucketEndIndex), rng));
+    index = bucketEndIndex;
+  }
+
+  return ranked.map((candidate, index) => ({
+    ...candidate,
+    rank: index + 1,
+  }));
+}
+
+export function getTopCandidates(players, { limit = 6, rng = Math.random } = {}) {
+  const allCandidates = enumerateValidAssignments(players);
+  const rankedCandidates = rankCandidates(allCandidates, { rng });
+  const limitedCandidates = rankedCandidates.slice(0, limit).map((candidate, index) => ({
+    ...candidate,
+    rank: index + 1,
+  }));
+
+  return {
+    candidates: limitedCandidates,
+    candidateCount: allCandidates.length,
+  };
+}
+
+export function optimizeTeams(players, options = {}) {
+  const { candidates, candidateCount } = getTopCandidates(players, options);
+  const bestCandidate = candidates[0] ?? null;
+
+  if (!bestCandidate) {
+    return null;
+  }
 
   return {
     ...bestCandidate,
-    candidateCount: candidates.length,
+    candidates,
+    candidateCount,
+    displayedCandidateCount: candidates.length,
   };
 }
 

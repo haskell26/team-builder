@@ -16,6 +16,8 @@ test('responsive layout keeps core sections stacked and overflow-contained on mo
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.main-grid,[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.teams-grid,[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.result-summary[\s\S]*grid-template-columns:\s*1fr;/);
+  assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.candidate-list,[\s\S]*grid-template-columns:\s*1fr;/);
+  assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.candidate-stats[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*640px\)\s*\{[\s\S]*\.page-shell\s*\{[\s\S]*width:\s*min\(100% - 20px,\s*1180px\);/);
 });
 

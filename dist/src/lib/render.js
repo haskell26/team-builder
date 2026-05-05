@@ -65,7 +65,7 @@ export function renderShell() {
             id="clipboard-input"
             class="clipboard-textarea"
             spellcheck="false"
-            placeholder="유저 이름\t탱커 티어\t딜러 티어\t힐러 티어"
+            placeholder="유저 이름\t탱커 티어\t딜러 티어\t힐러 티어\n하늘방패\t마스터\t실버\t골드"
           ></textarea>
 
           <div class="button-row">
@@ -80,7 +80,7 @@ export function renderShell() {
         <section class="panel-card side-panel">
           <div class="section-heading">
             <h2>${escapeHtml(UI_COPY.sampleTitle)}</h2>
-            <p>헤더 이름과 탭 구분을 그대로 유지해 주세요.</p>
+            <p>헤더 행은 있어도 되고 없어도 됩니다. 붙여넣을 때는 탭 구분만 유지해 주세요.</p>
           </div>
           <pre class="sample-pre">${escapeHtml(SAMPLE_FORMAT_LINES.join('\n'))}</pre>
 
@@ -133,7 +133,7 @@ export function renderFeedback(errors, hasText, hasValidPlayers, hasResult) {
   }
 
   if (hasResult) {
-    return '<p class="feedback-success">검증이 완료되었습니다. 아래 결과 카드에서 팀 구성을 확인해 주세요.</p>';
+    return '<p class="feedback-success">검증과 계산이 완료되었습니다. 후보를 눌러 상세 팀 구성을 바로 비교해 보세요.</p>';
   }
 
   if (hasValidPlayers) {
@@ -217,29 +217,80 @@ function renderTeamColumn(team) {
   `;
 }
 
-export function renderResult(result) {
+function renderSummaryCard(label, value, key) {
+  return `
+    <article class="summary-card" data-summary-key="${escapeHtml(key)}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </article>
+  `;
+}
+
+function renderCandidateCard(candidate, index, selectedCandidateId) {
+  const isSelected = candidate.id === selectedCandidateId;
+
+  return `
+    <button
+      id="candidate-button-${index + 1}"
+      class="candidate-card ${isSelected ? 'candidate-card-selected' : ''}"
+      type="button"
+      aria-pressed="${isSelected ? 'true' : 'false'}"
+    >
+      <div class="candidate-card-header">
+        <div>
+          <p class="candidate-kicker">${index === 0 ? '기본 추천' : '대안 후보'}</p>
+          <strong>후보 ${candidate.rank}</strong>
+        </div>
+        <span class="candidate-difference">${formatScore(candidate.scoreDifference)} 차이</span>
+      </div>
+      <p class="candidate-team-totals">
+        팀 A ${formatScore(candidate.teams[0].totalScore)} · 팀 B ${formatScore(candidate.teams[1].totalScore)}
+      </p>
+      <div class="candidate-stats">
+        <span>역할군 차이 합 ${formatScore(candidate.roleScoreDifferenceSum)}</span>
+        <span>탱커 차이 ${formatScore(candidate.tankScoreDifference)}</span>
+        <span>언랭 차이 ${candidate.unrankedDifference}명</span>
+      </div>
+    </button>
+  `;
+}
+
+export function renderResult(result, candidates = [], selectedCandidateId = null) {
   if (!result) {
     return `<div class="empty-state">${escapeHtml(UI_COPY.emptyResult)}</div>`;
   }
 
   return `
-    <div class="result-summary">
-      <article class="summary-card">
-        <span>점수 차이</span>
-        <strong>${formatScore(result.scoreDifference)}</strong>
-      </article>
-      <article class="summary-card">
-        <span>언랭 분배 차이</span>
-        <strong>${result.unrankedDifference}명</strong>
-      </article>
-      <article class="summary-card">
-        <span>검토한 조합</span>
-        <strong>${result.candidateCount.toLocaleString('ko-KR')}개</strong>
-      </article>
-    </div>
+    <section class="candidate-section">
+      <div class="section-heading result-subsection">
+        <h3>추천 후보 6개</h3>
+        <p>전체 ${result.candidateCount.toLocaleString('ko-KR')}개 조합 중 우선순위가 높은 후보만 표시합니다.</p>
+      </div>
+      <div class="candidate-list">
+        ${candidates.map((candidate, index) => renderCandidateCard(candidate, index, selectedCandidateId)).join('')}
+      </div>
+    </section>
 
-    <div class="teams-grid">
-      ${result.teams.map(renderTeamColumn).join('')}
-    </div>
+    <section class="detail-section">
+      <div class="section-heading result-subsection">
+        <h3>선택된 후보 ${result.rank}</h3>
+        <p>후보를 바꿔도 입력값과 미리보기는 유지되고, 아래 상세 팀 구성만 즉시 바뀝니다.</p>
+      </div>
+
+      <div class="result-summary">
+        ${renderSummaryCard('팀 A 총점', formatScore(result.teams[0].totalScore), 'team-a-total')}
+        ${renderSummaryCard('팀 B 총점', formatScore(result.teams[1].totalScore), 'team-b-total')}
+        ${renderSummaryCard('점수 차이', formatScore(result.scoreDifference), 'score-difference')}
+        ${renderSummaryCard('역할군 차이 합', formatScore(result.roleScoreDifferenceSum), 'role-score-difference-sum')}
+        ${renderSummaryCard('탱커 차이', formatScore(result.tankScoreDifference), 'tank-score-difference')}
+        ${renderSummaryCard('언랭 분배 차이', `${result.unrankedDifference}명`, 'unranked-difference')}
+      </div>
+
+      <p class="result-note">역할군 차이 합은 탱커, 딜러, 힐러 배정 점수 차이의 절대값을 더한 값입니다.</p>
+
+      <div class="teams-grid">
+        ${result.teams.map(renderTeamColumn).join('')}
+      </div>
+    </section>
   `;
 }

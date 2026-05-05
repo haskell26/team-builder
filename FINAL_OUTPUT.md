@@ -1,37 +1,41 @@
 # Final Output
 
-## 구현 내용
+## 이번 라운드 구현 범위
 
-- 엑셀에서 복사한 TSV 표를 붙여넣어 검증하고, 10명을 `1탱 2딜 2힐` 구조의 두 팀으로 나누는 정적 프론트엔드 앱을 구현했습니다.
-- 티어 별칭 정규화(`U`, `언랭`, `Unranked`, `플래`, `그마` 등), 10명 고정 검증, 중복 이름 검증, 빈 셀 검증, 지원하지 않는 티어 검증을 모두 한국어 메시지로 제공합니다.
-- 완전 탐색 기반 옵티마이저를 구현해 점수 차이 최소화 → 언랭 배정 차이 최소화 → 사전식 고정 순서로 결정하도록 만들었습니다.
-- 결과 화면은 팀별 카드, 역할 배지, 배정 점수, 언랭 강조, 팀 총점, 최종 점수 차이를 보여 줍니다.
+- 기존 붙여넣기, 검증, 단일 추천 흐름을 유지한 채 상위 후보 조합 6개 비교 기능을 추가했습니다.
+- 입력 첫 행이 정확한 한국어 헤더일 때만 헤더로 인식하도록 바꿔, 헤더 포함/미포함 붙여넣기를 모두 지원합니다.
+- 후보 조합 정렬 기준을 `총점 차이 -> 역할군 차이 합 -> 탱커 차이 -> 언랭 분배 차이 -> 완전 동률 시 무작위` 순서로 확장했습니다.
+- 결과 화면에 후보 카드 목록을 추가하고, 첫 후보를 기본 선택한 뒤 클릭 시 상세 팀 구성이 즉시 바뀌도록 수정했습니다.
+- 파서, 옵티마이저, DOM 흐름 테스트를 이번 기능 기준으로 확장했습니다.
 
 ## 사용 방법
 
-1. `npm run build` 또는 개발 중에는 `index.html`을 정적 서버로 제공합니다.
-2. 앱에서 10명 표를 붙여넣습니다.
-3. 미리보기 표를 확인한 뒤 `팀 나누기`를 누릅니다.
-4. 두 팀의 역할 배정과 총점을 확인합니다.
+1. `유저 이름 / 탱커 티어 / 딜러 티어 / 힐러 티어` 4열을 가진 10명 표를 붙여넣습니다.
+   - 헤더 행은 있어도 되고 없어도 됩니다.
+2. `팀 나누기`를 누르면 후보 6개가 표시됩니다.
+3. 후보 카드에서 `팀 A 총점`, `팀 B 총점`, `점수 차이`, `역할군 차이 합`, `탱커 차이`, `언랭 차이`를 비교합니다.
+4. 원하는 후보를 클릭해 아래 상세 `팀 A / 팀 B` 배정 결과를 확인합니다.
 
 ## 검증 기록
 
 - 실행: `npm test`
-  - 결과: 파서, 티어 정규화, 옵티마이저, `src/main.js` 엔트리포인트 DOM 스모크 테스트(붙여넣기 → 검증 → 팀 계산 → 초기화, 오류 입력 차단), 반응형 CSS 계약 테스트, 브라우저 스모크 하네스 유닛 테스트까지 통과
+  - 결과: 통과
 - 실행: `npm run build`
-  - 결과: `dist/` 정적 번들 생성 확인
-- 실행: `node --input-type=module -e "import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; ..."`
-  - 결과: 샘플 데이터에서 `scoreDifference=0`, `unrankedDifference=0`, 팀 총점 `[16, 16]`, 역할 구성 `1탱 2딜 2힐 / 1탱 2딜 2힐` 확인
-- 실행: `npm run test:browser`
-  - 결과: 이 샌드박스에는 Chromium 계열 브라우저 바이너리가 없어 `Chromium 계열 브라우저를 찾지 못했습니다` 오류로 종료. 대신 QA 환경에서 그대로 실행할 수 있는 headless 브라우저 하네스를 추가함
+  - 결과: 통과, `dist/` 정적 번들 생성 확인
+- 실행: `for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v "$name" || true; done`
+  - 결과: Chromium 계열 브라우저 경로를 찾지 못해서 `npm run test:browser` 는 이번 샌드박스에서 실행하지 않았습니다.
+- 실행: `node --input-type=module -e "import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const sample = await readFile('./src/fixtures/samplePlayers.tsv', 'utf8'); const headerless = sample.split('\n').slice(1).join('\n'); for (const [label, text] of [['header', sample], ['headerless', headerless]]) { const balance = buildBalanceFromClipboard(text, { rng: () => 0.5 }); console.log(label, balance.players.length, balance.candidates.length, balance.candidateCount, balance.result.scoreDifference, balance.result.roleScoreDifferenceSum, balance.result.tankScoreDifference, balance.result.unrankedDifference, balance.result.teams.map((team) => team.totalScore).join('/')); }"`
+  - 결과: `header 10 6 113400 0 0 0 0 14/14`
+  - 결과: `headerless 10 6 113400 0 0 0 0 14/14`
 
-## 가정과 범위
+## 가정
 
-- 티어 체계는 `U=0, 브론즈=1, 실버=2, 골드=3, 플래티넘=4, 다이아=5, 마스터=6, 그랜드마스터=7`로 고정했습니다.
-- 플레이어는 정확히 10명이어야 하며, 벤치 인원이나 부분 편성은 지원하지 않습니다.
-- 각 플레이어는 역할별 티어 값을 모두 가지고 있고, 역할 선호도는 이번 버전에서 고려하지 않습니다.
+- 역할군 차이 합은 `탱커/딜러/힐러` 배정 점수 차이 절대값의 합으로 계산했습니다.
+- 언랭 분배 차이는 양 팀 전체 언랭 배정 인원 수 차이로 계산했습니다.
+- 동률 후보 무작위화는 앞선 4개 지표가 모두 같은 경우에만 적용되며, 테스트에서는 주입한 RNG로 고정 검증했습니다.
 
 ## 남은 제한
 
-- 실제 브라우저 엔진 결과 자체는 이 샌드박스에 브라우저 바이너리가 없어서 아직 실행 증거를 남기지 못했습니다. 다만 `scripts/browserSmoke.mjs` 를 추가해 QA 환경에서는 로컬 서버 없이 `dist/` 산출물 기준 headless 브라우저 검증을 바로 돌릴 수 있게 했습니다.
-- 저장 기능, 역할 선호도 순위, 다른 게임 확장은 범위 밖으로 남겨 두었습니다.
+- 실제 브라우저 엔진으로 `dist/` 결과를 확인하는 `npm run test:browser` 는 브라우저 바이너리가 없는 현재 환경에서 실행하지 못했습니다.
+- 브라우저 스모크 스크립트는 빌드된 JS/CSS를 임시 HTML 하네스에 올려 검증하는 방식이라, 실제 `dist/index.html` 진입 자체를 대체하지는 않습니다.
+- 역할 선호도, 저장 기능, 다른 게임 확장은 여전히 범위 밖입니다.

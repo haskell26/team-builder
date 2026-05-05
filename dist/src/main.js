@@ -1,5 +1,5 @@
 import { SAMPLE_FIXTURE_TEXT } from './constants/copy.js';
-import { optimizeTeams } from './lib/optimizer.js';
+import { buildBalanceFromClipboard, getSelectedCandidateResult } from './lib/appFlow.js';
 import { parseClipboard } from './lib/parseClipboard.js';
 import { renderFeedback, renderPreview, renderResult, renderShell } from './lib/render.js';
 
@@ -9,6 +9,9 @@ const state = {
   clipboardText: '',
   errors: [],
   players: [],
+  candidates: [],
+  candidateCount: 0,
+  selectedCandidateId: null,
   result: null,
 };
 
@@ -25,6 +28,11 @@ const elements = {
 };
 
 function updatePanels() {
+  updateInputPanels();
+  updateResultPanel();
+}
+
+function updateInputPanels() {
   elements.feedbackPanel.innerHTML = renderFeedback(
     state.errors,
     Boolean(state.clipboardText.trim()),
@@ -32,13 +40,28 @@ function updatePanels() {
     Boolean(state.result),
   );
   elements.previewPanel.innerHTML = renderPreview(state.players);
-  elements.resultPanel.innerHTML = renderResult(state.result);
+}
+
+function bindCandidateButtons() {
+  state.candidates.forEach((candidate, index) => {
+    document.querySelector(`#candidate-button-${index + 1}`)?.addEventListener('click', () => {
+      handleCandidateSelection(candidate.id);
+    });
+  });
+}
+
+function updateResultPanel() {
+  elements.resultPanel.innerHTML = renderResult(state.result, state.candidates, state.selectedCandidateId);
+  bindCandidateButtons();
 }
 
 function syncPreview() {
   if (!state.clipboardText.trim()) {
     state.errors = [];
     state.players = [];
+    state.candidates = [];
+    state.candidateCount = 0;
+    state.selectedCandidateId = null;
     return;
   }
 
@@ -49,6 +72,9 @@ function syncPreview() {
 
 function handleInputChange(nextValue) {
   state.clipboardText = nextValue;
+  state.candidates = [];
+  state.candidateCount = 0;
+  state.selectedCandidateId = null;
   state.result = null;
   syncPreview();
   updatePanels();
@@ -58,14 +84,33 @@ function handleBalance() {
   syncPreview();
 
   if (state.errors.length > 0 || state.players.length === 0) {
+    state.candidates = [];
+    state.candidateCount = 0;
+    state.selectedCandidateId = null;
     state.result = null;
     updatePanels();
     return;
   }
 
-  state.result = optimizeTeams(state.players);
+  const balance = buildBalanceFromClipboard(state.clipboardText);
+  state.errors = balance.errors;
+  state.players = balance.players;
+  state.candidates = balance.candidates;
+  state.candidateCount = balance.candidateCount;
+  state.selectedCandidateId = balance.selectedCandidateId;
+  state.result = balance.result;
   updatePanels();
   document.querySelector('#result-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function handleCandidateSelection(candidateId) {
+  if (!candidateId || candidateId === state.selectedCandidateId) {
+    return;
+  }
+
+  state.selectedCandidateId = candidateId;
+  state.result = getSelectedCandidateResult(state.candidates, candidateId, state.candidateCount);
+  updateResultPanel();
 }
 
 function loadSampleFixture() {
@@ -77,6 +122,9 @@ function clearAll() {
   state.clipboardText = '';
   state.errors = [];
   state.players = [];
+  state.candidates = [];
+  state.candidateCount = 0;
+  state.selectedCandidateId = null;
   state.result = null;
   elements.textarea.value = '';
   updatePanels();

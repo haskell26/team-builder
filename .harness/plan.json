@@ -1,102 +1,115 @@
 {
   "project_name": "Team Builder",
-  "summary": "Build a frontend-only, Korean-language web app deployable to GitHub Pages that lets an Overwatch community admin paste 10 players from a spreadsheet, validates the data, computes the most balanced 5v5 split under the required role composition, and presents a readable result. v1 excludes persistence, role-preference ranking, and non-Overwatch game support.",
+  "summary": "Extend the existing frontend-only Korean Team Builder app rather than rebuilding it. The current baseline already supports Excel paste input, validation, preview, and one best-team result. This iteration adds six ranked candidate combinations, optional header-row parsing, stronger role-group balance ranking with explicit tank priority, and a selectable candidate-detail UI. Existing unresolved real-browser/mobile QA remains documented but is not a blocker for this round.",
   "milestones": [
     {
-      "title": "Foundation And Domain Model",
-      "objective": "Set up a static frontend baseline and lock the scoring and data model so later work is deterministic.",
+      "title": "Input Contract Update",
+      "objective": "Support both header and no-header paste formats without regressing the current validation and preview flow.",
       "deliverables": [
-        "Scaffold a Vite + React + TypeScript single-page app with no backend dependency and a layout suitable for GitHub Pages.",
-        "Create `src/config/gameConfig.ts` containing Korean role labels, tier aliases, and numeric scores: `U=0`, `브론즈=1`, `실버=2`, `골드=3`, `플래티넘=4`, `다이아=5`, `마스터=6`, `그랜드마스터/그마=7`.",
-        "Define shared types in `src/types.ts` for `PlayerInput`, `NormalizedPlayer`, `Role`, `TeamAssignment`, and `BalanceResult`.",
-        "Add a sample fixture in `src/fixtures/samplePlayers.tsv` for development and automated tests.",
-        "Set base styling tokens and Korean copy constants so the UI stays consistent and readable on desktop and mobile."
+        "Update `src/lib/parseClipboard.js` so the first non-empty row is treated as a header only when it matches the canonical Korean columns `유저 이름 / 탱커 티어 / 딜러 티어 / 힐러 티어`; otherwise treat it as player data.",
+        "Keep the existing 10-player, duplicate-name, empty-cell, and unsupported-tier validation rules, but make row-number reporting correct in both modes: header-present input should keep spreadsheet row numbers, and headerless input should start from row 1.",
+        "Leave the normalized player shape unchanged enough that the existing preview table and optimizer can still consume it with minimal refactor.",
+        "Update Korean UI copy in `src/constants/copy.js` and the input help text in `src/lib/render.js` to state clearly that the header row is optional.",
+        "Add parser tests covering: valid input with header, valid input without header, malformed pseudo-header rows, and validation errors in both modes."
       ]
     },
     {
-      "title": "Clipboard Input Flow",
-      "objective": "Implement the spreadsheet paste experience, normalization, and Korean validation messages.",
+      "title": "Candidate Ranking Engine",
+      "objective": "Refactor the optimizer so it produces six distinct ranked candidate team splits using the new tie-break rules while preserving the current single-best recommendation behavior.",
       "deliverables": [
-        "Build an input panel with a large paste textarea, example format, and a primary action such as `팀 나누기`.",
-        "Implement `src/lib/parseClipboard.ts` to parse tab-separated spreadsheet text, trim whitespace, ignore blank trailing lines, and map the expected columns `유저 이름`, `탱커 티어`, `딜러 티어`, `힐러 티어`.",
-        "Implement tier normalization so common aliases like `언랭`, `Unranked`, `플래`, and `그마` resolve to canonical values.",
-        "Validate exactly 10 players, required non-empty name and tier cells, allowed tier values only, and unique player names; surface all errors in Korean before the optimizer runs.",
-        "Render a preview table of normalized players so the admin can confirm the pasted data before viewing results."
+        "Extend `src/lib/optimizer.js` to compute a richer candidate object for each distinct team split: both teams, total score difference, per-role team totals, role-score-difference sum, tank-score difference, unranked difference, and a canonical dedupe key.",
+        "Define `role-score-difference sum` as `abs(tank diff) + abs(damage diff) + abs(support diff)` using the assigned-role scores in the final candidate.",
+        "Deduplicate equivalent team pairings before ranking so the top six are six distinct candidate combinations, not repeated copies caused by enumeration order.",
+        "Implement ranking in this exact order: `1) total score difference asc`, `2) role-score-difference sum asc`, `3) tank-score difference asc`, `4) unranked difference asc`, `5) random order only inside groups that are identical on the first four metrics`.",
+        "Keep the old best-result flow by exposing a helper such as `getTopCandidates(players, { limit, rng })` and making `optimizeTeams(players)` return the first ranked candidate plus metadata for backward compatibility.",
+        "Inject the random function instead of calling `Math.random` directly inside ranking logic so tests can force deterministic order for full ties."
       ]
     },
     {
-      "title": "Balance Optimizer",
-      "objective": "Compute the best team split with deterministic tie-breaking and testable logic.",
+      "title": "Candidate Selection UI",
+      "objective": "Show six candidate summaries and let the user inspect one candidate in detail without making the UX complicated.",
       "deliverables": [
-        "Implement `src/lib/optimizer.ts` as a pure function that searches all valid assignments for two teams of `1 tank + 2 damage + 2 support`, using every player exactly once.",
-        "Use a reduced exhaustive search instead of free-form permutation: choose Tank A, Tank B, Damage pair A, Damage pair B, then assign the remaining players to Support A and Support B.",
-        "Score each assignment by total team score difference first, then by assigned-role unranked count difference, then by a deterministic lexicographic key so repeated runs return the same result.",
-        "Return a structured result object with per-team slots, assigned role, tier text, numeric score, total score, absolute score difference, and unranked counts.",
-        "Add unit tests that prove the optimizer preserves role counts, never duplicates players, and finds the best candidate for fixed fixtures."
+        "Update app state in `src/main.js` and `src/lib/appFlow.js` to store `candidates`, `selectedCandidateId`, and the currently selected detail result; compute candidates once on `팀 나누기` and default-select the first ranked candidate.",
+        "Update `src/lib/render.js` to add a compact Korean candidate list section with six clickable cards or buttons labeled clearly, for example `후보 1` to `후보 6`, with the first candidate visually marked as the recommended default.",
+        "Each candidate summary must show at minimum: team A total, team B total, total score difference, role-score-difference sum, tank-score difference, and unranked difference.",
+        "Keep the existing detailed team board concept, but make it render the currently selected candidate so the user can inspect `팀 A / 팀 B`, assigned roles, tier labels, scores, and totals for the chosen option.",
+        "Clicking a candidate must update only the selected detail view and selected styling immediately, without clearing the pasted input or rerunning validation.",
+        "Adjust `src/styles.css` so the added candidate list remains readable on desktop and narrow widths, but do not spend the round on new browser-qa-only work beyond keeping the layout sane."
       ]
     },
     {
-      "title": "Result UI, QA, And Handoff",
-      "objective": "Present the result clearly, verify the full flow, and leave the repo ready for GitHub Pages deployment.",
+      "title": "Verification And Handoff",
+      "objective": "Lock the new behavior with automated checks and update project docs so the next agent or reviewer can verify the feature quickly.",
       "deliverables": [
-        "Build a result board showing both teams side by side on desktop and stacked on mobile, with role badges, player names, tier labels, per-slot scores, team totals, and the final score difference.",
-        "Highlight unranked assignments visibly so the admin can confirm that they are spread fairly.",
-        "Provide a simple reset or edit path that returns the user to the pasted input without adding complex UX.",
-        "Add automated tests for parser + optimizer integration and a UI smoke test for the main paste-to-result flow.",
-        "Document local run, test, build, and GitHub Pages deployment steps in `README.md`, and record assumptions, scope cuts, and verification evidence in `FINAL_OUTPUT.md`."
+        "Expand `test/optimizer.test.js` with fixtures that prove ordering by total score difference, then role-score-difference sum, then tank-score difference, then unranked difference.",
+        "Add a full-tie optimizer test that injects a fake RNG and verifies randomization happens only within an exact-tie metric bucket.",
+        "Expand `test/appFlow.test.js` so the DOM flow asserts six candidates render, the first one is selected by default, and clicking another candidate updates the detailed team output immediately.",
+        "Keep `npm test` and `npm run build` as mandatory checks for this round; treat `npm run test:browser` as optional evidence only when a Chromium-family browser is available.",
+        "Update `README.md` with the optional-header input rule, six-candidate ranking logic, and the user flow for selecting a candidate.",
+        "Update `FINAL_OUTPUT.md` with implemented scope, explicit assumptions, exact verification commands run, and a note that unresolved real-browser/mobile evidence is still non-blocking in this iteration."
       ]
     }
   ],
   "acceptance_criteria": [
-    "Given a pasted TSV table with headers `유저 이름`, `탱커 티어`, `딜러 티어`, `힐러 티어` and 10 valid rows, clicking `팀 나누기` produces exactly 2 teams of 5 players each, with each team containing 1 tank, 2 damage, and 2 support, and each input player appearing exactly once.",
-    "Given a fixed fixture where there are 2 tank specialists, 4 damage specialists, and 4 support specialists at mirrored scores, the computed result has a total score difference of `0`.",
-    "When pasted input has fewer or more than 10 players, duplicate names, missing cells, or unsupported tier text, the app does not compute teams and instead shows explicit Korean validation messages.",
-    "Given a tie-break fixture with multiple equal-score solutions, the selected result has the smallest absolute difference in assigned-role unranked counts between the two teams.",
-    "All user-facing controls, labels, help text, and validation messages are in Korean, and the main workflow is usable at `360px` mobile width and standard desktop width without horizontal overflow.",
-    "`npm run test` and `npm run build` succeed, and the built app is a static bundle that can be served without any backend process."
+    "Given the same valid 10-player roster, pasting it with the canonical header row or without any header row both succeed and produce candidate results instead of validation errors.",
+    "After clicking `팀 나누기` on a valid 10-player roster, exactly 6 distinct candidate combinations are shown.",
+    "Every candidate combination contains exactly 2 teams of 5 players, each team has `1탱 2딜 2힐`, and no player appears more than once within the candidate.",
+    "Each candidate summary shows team A and team B totals, absolute total score difference, role-score-difference sum, tank-score difference, and unranked difference in Korean UI.",
+    "Candidate ordering follows the required priority: total score difference first, then role-score-difference sum, then tank-score difference, then unranked difference.",
+    "When multiple candidates are identical on all four ranking metrics, only that tied group is randomized; with an injected test RNG, the order is reproducible.",
+    "The first ranked candidate is selected by default and displayed in the detailed team board, preserving the existing single-best recommendation flow.",
+    "When the user clicks another candidate, the detailed `팀 A / 팀 B` composition updates immediately without page reload and without clearing the pasted input.",
+    "Headerless invalid input and header-based invalid input both still return clear Korean validation messages for wrong player count, duplicate names, empty cells, and unsupported tiers.",
+    "`README.md` and `FINAL_OUTPUT.md` describe the new six-candidate feature, the optional-header rule, and the actual verification scope for this iteration."
   ],
   "test_strategy": [
-    "Unit-test tier alias normalization and score mapping including `U`, `언랭`, `브론즈`, `플래`, `그마`, and English aliases.",
-    "Unit-test clipboard parsing with realistic Excel paste text, extra blank lines, invalid column names, malformed row counts, and duplicate player names.",
-    "Unit-test the optimizer with at least two fixtures: one zero-difference case and one tie case where unranked distribution decides the winner.",
-    "Add an integration or component test for the core UI flow: paste fixture text into the textarea, trigger calculation, and assert Korean result cards and totals render.",
-    "Run a manual smoke test against the built `dist/` output in a local static server to verify desktop/mobile layout and GitHub Pages asset-path compatibility."
+    "Unit-test `parseClipboard` with four fixtures: valid with header, valid without header, malformed first row that should be treated as player data, and invalid data in both modes.",
+    "Unit-test optimizer ranking with purpose-built fixtures where only one tie-break level changes at a time: total score difference, then role-score-difference sum, then tank-score difference, then unranked difference.",
+    "Add a dedupe test that confirms the top six candidates are unique by canonical team-pair key.",
+    "Add a full-tie test that passes a stub RNG into the candidate-ranking function so exact-tie ordering can be asserted without flaky tests.",
+    "Extend the DOM app-flow test to cover candidate list rendering, default selection, candidate switching, and preserved input text after selection changes.",
+    "Run `npm test` and `npm run build` before handoff; run `npm run test:browser` only if a Chromium-family browser is present, and record clearly whether it was executed or skipped."
   ],
   "risks": [
     {
-      "risk": "Spreadsheet paste formats vary between Excel, Google Sheets, and OS clipboard behavior.",
-      "mitigation": "Keep the parser tab-first, trim BOM and whitespace, ignore blank trailing lines, and show a visible sample format plus actionable Korean errors."
+      "risk": "The optimizer may produce duplicate candidate rows because multiple enumeration paths can map to the same final team pairing.",
+      "mitigation": "Canonicalize team order, generate a stable dedupe key per pairing, store candidates in a `Map`, and test that the returned top six have unique keys."
     },
     {
-      "risk": "Tier wording is ambiguous because the spec omits some middle tiers and communities may use shorthand.",
-      "mitigation": "Centralize aliases in one config module, ship with the standard Overwatch ladder assumption, and document the mapping in `README.md` and `FINAL_OUTPUT.md`."
+      "risk": "Random tie-breaking can make automated tests flaky and can accidentally disturb non-tied ranking order.",
+      "mitigation": "Sort deterministically on the first four metrics, randomize only inside exact-tie buckets, and inject the RNG function so tests can use a fixed stub."
     },
     {
-      "risk": "Optimizer bugs can silently produce invalid or suboptimal teams.",
-      "mitigation": "Keep the optimizer pure, use exhaustive search with symmetry reduction instead of heuristics, and cover it with deterministic fixture-based tests."
+      "risk": "Optional header detection can misclassify the first player row as a header and silently drop a player.",
+      "mitigation": "Use strict header detection against the exact canonical Korean column names and add regression tests for headerless input whose first row contains normal player data."
     },
     {
-      "risk": "GitHub Pages deployment can break asset paths in SPA builds.",
-      "mitigation": "Avoid client-side routing, use relative or correctly based static asset paths, and verify the built `dist/` bundle through a local static-server smoke test before handoff."
+      "risk": "Adding six candidates can make the result UI crowded and harder to scan than the current single-result board.",
+      "mitigation": "Keep summaries compact, show detailed rosters for only the selected candidate, and default-select the first recommendation instead of rendering six full boards at once."
     },
     {
-      "risk": "Readability can degrade on mobile if both teams are rendered as dense tables.",
-      "mitigation": "Use card-based team layouts with clear role badges and a stacked mobile presentation, then verify at 360px width during manual QA."
+      "risk": "Refactoring the optimizer for candidates can break the existing single-best result behavior that current tests and UI rely on.",
+      "mitigation": "Preserve a backward-compatible `optimizeTeams` entrypoint backed by the new ranked-candidate function and keep existing best-result assertions in the test suite."
+    },
+    {
+      "risk": "The unresolved browser/mobile QA items from earlier rounds could distract implementation time away from the higher-priority candidate feature.",
+      "mitigation": "Treat real-browser verification as non-blocking this round, keep automated DOM/build coverage current, and document the remaining browser evidence gap honestly in handoff docs."
     }
   ],
   "definition_of_done": [
-    "A frontend-only app in Korean accepts spreadsheet paste input, validates it, and computes a balanced 10-player Overwatch team split.",
-    "The optimizer is deterministic and verified by automated tests for composition rules, scoring, and unranked tie-breaking.",
-    "The result screen clearly shows both teams, assigned roles, tier scores, team totals, and balance difference on mobile and desktop.",
-    "`README.md` contains accurate setup, test, build, and GitHub Pages deployment instructions.",
-    "`FINAL_OUTPUT.md` records implemented scope, explicit assumptions, any scope cuts, and verification evidence.",
-    "No backend, persistence layer, or placeholder-only UX is introduced in the first handoff."
+    "The existing paste, validation, preview, and single-best-result workflow still works, with the first ranked candidate acting as the default recommendation.",
+    "The app accepts both header-present and headerless Excel-style paste input.",
+    "The app produces 6 distinct candidate combinations ranked by total score difference, role-score-difference sum, tank-score difference, and unranked difference, with randomization only for full ties.",
+    "The user can click any candidate and immediately inspect its detailed team composition in Korean.",
+    "Automated tests cover parser mode detection, optimizer ranking, candidate uniqueness, and candidate-selection UI behavior.",
+    "`npm test` and `npm run build` pass for the final workspace state.",
+    "`README.md` and `FINAL_OUTPUT.md` are updated to match the implemented feature set and this round's actual verification scope."
   ],
   "open_questions": [
-    "Assumption: `.harness/spec.md` and `.harness/plan.json` are not present in this workspace, so this plan is derived from the user-provided spec in the prompt.",
-    "Assumption: v1 requires exactly 10 players every time; bench players, auto-fill, and partial rosters are out of scope.",
-    "Assumption: the tier ladder is `U/Unranked=0`, `브론즈=1`, `실버=2`, `골드=3`, `플래티넘=4`, `다이아=5`, `마스터=6`, `그랜드마스터/그마=7`.",
-    "Assumption: each player can be assigned to any one role using the tier provided for that role; role preference ranking is intentionally deferred.",
-    "Assumption: local storage, saved player pools, and support for games beyond Overwatch remain out of scope for the first handoff."
+    "Assumption: `role-score-difference sum` means the sum of absolute assigned-role score gaps for `tank`, `damage`, and `support` across the two teams.",
+    "Assumption: `언랭 분배 차이` means the absolute difference in total unranked assigned-role counts between the two teams, not role-specific unranked balancing.",
+    "Assumption: `후보 조합 6개` means 6 distinct final team pairings after canonical deduplication; duplicate partitions from enumeration should not be shown separately.",
+    "Assumption: optional header support only auto-detects the canonical Korean header row; any other first row is treated as player data and validated normally.",
+    "Assumption: real-browser/mobile verification from previous QA remains documented but is intentionally non-blocking for this feature-focused round unless a browser is available to run `npm run test:browser`."
   ]
 }

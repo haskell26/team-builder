@@ -1,36 +1,22 @@
 {
-  "verdict": "revise",
-  "summary": "Core parsing and optimization behavior looks solid, and the static build succeeds, but this should not be released yet because the actual browser UI flow is still unverified and the handoff doc overstates what was tested.",
-  "score": 80,
+  "verdict": "pass",
+  "summary": "No release-blocking issues found in the implemented scope. The candidate-expansion feature, optional-header parsing, main UI selection flow, and handoff docs all match the current spec. Residual risk remains around real browser-engine evidence because Chromium is unavailable in this sandbox, but this round explicitly treats that as non-blocking.",
+  "score": 94,
   "strengths": [
-    "`npm test` and `npm run build` both pass, and the app remains frontend-only with a static `dist/` bundle.",
-    "Parser validation is strong: exact 10-player enforcement, duplicate-name detection, missing-cell checks, tier alias normalization, and Korean error messages are implemented in `src/lib/parseClipboard.js`.",
-    "Optimizer behavior is credible: role counts are enforced, every player is used once, deterministic tie-breaking is present, and targeted independent cross-checks matched the reported score/unranked objectives."
+    "`src/lib/parseClipboard.js` correctly accepts canonical-header and headerless TSV input, preserves row numbering by mode, and returns Korean validation errors for bad counts, duplicates, empty cells, and unsupported tiers.",
+    "`src/lib/optimizer.js` produces 6 distinct candidates, preserves `1탱 2딜 2힐` composition, deduplicates team pairings, and ranks by total score difference, role-score-difference sum, tank difference, then unranked difference, with RNG limited to exact metric ties.",
+    "`src/main.js`, `src/lib/appFlow.js`, and `src/lib/render.js` preserve the existing single-best flow by defaulting to candidate 1 while allowing immediate candidate switching without clearing input.",
+    "`README.md` and `FINAL_OUTPUT.md` are aligned with the actual implementation and accurately describe the optional-header rule, six-candidate behavior, and the non-blocking browser-smoke limitation."
   ],
-  "findings": [
-    {
-      "severity": "high",
-      "title": "Main UI flow is not actually smoke-tested",
-      "detail": "The only so-called UI test at `test/appFlow.test.js:8` never loads `index.html` or `src/main.js`; it just calls `buildBalanceFromClipboard()` and `render*()` helpers directly. That means the real user path in `src/main.js:15-90`—textarea input, button wiring, state transitions, reset/edit flow, and browser rendering behavior—remains unverified. Given the spec and plan require a usable paste-to-result frontend workflow and mobile/browser readiness, this is a release blocker.",
-      "fix": "Add a real DOM/browser smoke test that initializes the app shell, imports `src/main.js`, simulates paste and `팀 나누기`, and asserts the rendered teams/errors. If full browser automation is not possible, use a DOM-capable harness that still exercises the actual event wiring instead of pure string helpers."
-    },
-    {
-      "severity": "medium",
-      "title": "`FINAL_OUTPUT.md` overstates verification coverage",
-      "detail": "`FINAL_OUTPUT.md:19-20` claims `npm test` covered an integrated '붙여넣기부터 결과 렌더링까지' flow, but the current test only checks markup strings from pure functions and does not exercise the real UI entrypoint. This is misleading release documentation, especially since `FINAL_OUTPUT.md:25-26` and `:36` also acknowledge that browser-level smoke testing was not completed.",
-      "fix": "Either strengthen the automated test coverage so the claim becomes true, or rewrite `FINAL_OUTPUT.md` to describe the current coverage precisely and call out the remaining UI/manual QA gap without implying end-to-end verification."
-    }
-  ],
-  "required_fixes": [
-    "Add a real DOM/browser smoke test for the paste -> validate -> team split -> result render workflow using the actual `src/main.js` entrypoint.",
-    "Update `FINAL_OUTPUT.md` so its verification section matches the real test scope and does not imply end-to-end UI coverage that does not exist."
-  ],
+  "findings": [],
+  "required_fixes": [],
   "verification_run": [
     "`npm test`",
     "`npm run build`",
-    "`node --input-type=module` check against `src/fixtures/samplePlayers.tsv` confirmed 2 teams of 5, role counts `1/2/2`, 10 unique players, `scoreDifference=0`, `unrankedDifference=0`, `candidateCount=113400`.",
-    "`node --input-type=module` independent optimizer cross-check across 12 random fixtures found no objective mismatches (`scoreDifference`/`unrankedDifference`).",
-    "`python3 -m http.server 4173 -d dist` failed in this sandbox with `PermissionError: [Errno 1] Operation not permitted`, so no live browser/server smoke test evidence exists in this environment."
+    "`npm run test:browser` (fails here as expected because no Chromium-family browser is installed in this sandbox)",
+    "`node --input-type=module` check of `buildBalanceFromClipboard()` with header and headerless sample input confirmed 10 parsed players, 6 visible candidates, balanced `1/2/2` teams, and zero score/tank/unranked differences on the sample fixture.",
+    "`node --input-type=module` check of `enumerateValidAssignments()` / `getTopCandidates()` confirmed 113400 distinct candidate pairings for the sample fixture, unique top-6 keys, and nondecreasing ranking metrics.",
+    "`node --input-type=module` random-fixture verification across 10 generated rosters confirmed top-6 uniqueness, `1탱 2딜 2힐` structure, and metric ordering stability."
   ],
-  "release_readiness": "Not release-ready. The logic layer is in good shape, but the browser-facing workflow required for handoff is still unverified and the current handoff doc overclaims that coverage."
+  "release_readiness": "Release-ready for this iteration. The feature work and automated verification meet the updated round scope; only the already-documented real-browser evidence gap remains, and the spec explicitly marks that gap as non-blocking for this pass."
 }

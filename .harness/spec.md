@@ -1,5 +1,14 @@
 # Team Builder
 
+## This Iteration
+
+이번 실행은 기존 결과물을 확장하는 2차 개발이다.
+기존 입력/팀 분배 기능은 유지한다.
+후보 조합을 같은 역할군 간 (특히 탱커) 밸런스도 맞아야 한다.
+이번 우선순위는 브라우저 검증 보강보다 후보 조합 기능 추가이다.
+기존 QA에서 남은 브라우저/모바일 실기기 검증 미완료는 이번 라운드에서 blocker로 간주하지 않는다.
+이번 라운드에서는 새로운 기능 확장을 우선한다.
+
 ## Goal
 
 각기 다른 실력을 가진 게임 플레이어 10명이 모였을 때, 밸런스가 맞는 두 팀으로 나누기
@@ -27,16 +36,26 @@ github.io로 올릴 수 있게 프론트엔드만으로 구성된 프로젝트�
 
 ## Must-Have Features
 
-user friendly input (copy-paste from excel)
-nicely-readable output
-product language in korean
+- user friendly input (copy-paste from excel)
+- nicely-readable output
+- product language in korean
+- 가능한 후보 조합 6개 생성
+- 각 후보마다 팀 A / 팀 B 구성, 역할 배정, 팀 총점, 점수 차이, 언랭 분배 차이 표시
+- 후보 조합은 다음 우선순위로 정렬:
+  1. 총점 차이 최소
+  1-1. 총점 차이가 같으면 역할군별 점수 차이 합이 더 작은 후보를 우선한다.
+  1-2. 역할군별 점수 차이 합도 같으면 탱커 점수 차이가 더 작은 후보를 우선한다.
+  2. 언랭 분배 차이 최소
+  3. 1, 1-1, 1-2, 2가 모두 같으면 랜덤하게 정렬
+- 사용자가 후보를 선택하면 해당 조합의 상세 팀 구성을 볼 수 있어야 한다.
+- 입력 헤더 행은 optional 이다. 있어도 되고 없어도 된다.
 
 ## Nice-To-Have Features
 
 - 플레이어별 역할 선호도 순서 적용 기능
-- 현재는 오버워치만 다루지만 추후 리그오브레전드로 확장될 가능성 있음
 - 게임 플레이어들 티어 저장 기능
 - 저장한 플레이어 중 10명 선택해서 불러오기 기능
+- 현재는 오버워치만 다루지만 추후 리그오브레전드로 확장될 가능성 있음
 
 ## Technical Constraints
 
@@ -44,16 +63,25 @@ product language in korean
 - Required integrations
 - Deployment assumptions: github.io로 프론트엔드만 배포 예정
 - Anything the agent must avoid: 복잡한 UX
+- 헤더 행은 있을 수도 있고 없을 수도 있다. 둘 다 지원해야 한다.
 
 ## Acceptance Tests
 
-- Concrete test the final output must pass
-- Another concrete test
+- 같은 10명 입력에 대해 후보 조합 6개가 표시된다.
+- 모든 후보 조합은 각 팀이 1탱 2딜 2힐 구성을 만족한다.
+- 모든 후보 조합에서 같은 플레이어가 중복 배정되지 않는다.
+- 후보 목록은 점수 차이, 언랭 분배 차이 기준으로 정렬된다.
+- 총점 차이가 같은 후보들 사이에서는 역할군별 점수 차이 합이 더 작은 후보가 먼저 표시된다.
+- 그 조건도 같으면 탱커 점수 차이가 더 작은 후보가 먼저 표시된다.
+- 사용자가 후보를 클릭하면 해당 후보의 상세 팀 구성이 즉시 갱신된다.
+- 헤더 행이 있는 입력과 없는 입력 모두 정상 처리된다.
 
 ## Non-Goals
 
-- What should not be built
+- 이번 라운드에서는 모바일 최적화를 필수로 요구하지 않는다.
 
 ## Definition Of Done
 
-- What makes this deliverable ready to hand off
+- 기존 단일 최적 팀 추천 기능이 유지된다.
+- 후보 조합 6개 기능이 추가되고, 각 후보의 비교 정보가 읽기 쉽게 표시된다.
+- README 와 FINAL_OUTPUT 에 새 기능과 검증 방법이 반영된다.

@@ -1,52 +1,48 @@
 {
-  "summary": "Built a frontend-only Korean Team Builder app from an empty workspace: spreadsheet paste parsing, deterministic 10-player team optimization, readable result UI, zero-dependency static build/test workflow, and handoff docs are all in place.",
+  "summary": "Extended the frontend Team Builder app for round 1 with optional-header parsing, six ranked candidate combinations, clickable candidate-detail UI, updated automated coverage, and refreshed README/FINAL_OUTPUT handoff docs.",
   "completed_work": [
-    "Scaffolded a static web app with `index.html`, modular ES modules under `src/`, shared game config, a sample TSV fixture, and documentation-only TypeScript type definitions.",
-    "Implemented clipboard parsing and validation in Korean for required headers, exact 10-player input, duplicate names, missing cells, and supported tier aliases including `U`, `언랭`, `Unranked`, `플래`, and `그마`.",
-    "Implemented a pure exhaustive optimizer that assigns `1 tank + 2 damage + 2 support` per team, uses every player exactly once, minimizes score difference first, then assigned-role unranked difference, then a deterministic lexicographic key.",
-    "Built the UI for paste input, live validation feedback, normalized preview table, and a mobile-friendly result board with role badges, totals, score difference, and visible unranked highlighting.",
-    "Added automated tests for parsing, normalization, optimization, and the main paste-to-result flow, plus `README.md` and `FINAL_OUTPUT.md` with setup, usage, deployment, assumptions, and verification notes."
+    "Updated `src/lib/parseClipboard.js` to accept header-present or headerless TSV input, only recognize the exact canonical Korean header row, and preserve correct row numbers in both modes.",
+    "Refactored `src/lib/optimizer.js` to compute richer candidate objects, rank distinct combinations by total score difference -> role-score-difference sum -> tank difference -> unranked difference, and randomize only exact metric ties through injected RNG.",
+    "Updated `src/lib/appFlow.js`, `src/main.js`, `src/lib/render.js`, `src/constants/copy.js`, and `src/styles.css` so the app shows six Korean candidate cards, default-selects the first candidate, and swaps only the detailed team board when another candidate is clicked.",
+    "Expanded tests in `test/parseClipboard.test.js`, `test/optimizer.test.js`, `test/appFlow.test.js`, and `test/responsiveLayout.test.js`, and aligned `scripts/browserSmoke.mjs` plus `testing/fakeDom.js` with the new candidate UI.",
+    "Rewrote `README.md` and `FINAL_OUTPUT.md` to document the optional-header rule, six-candidate ranking behavior, actual verification scope, and the remaining non-blocking browser evidence gap."
   ],
   "verification": [
     {
       "command": "npm test",
-      "result": "Passed. Node test suite succeeded for parser, optimizer, and app-flow coverage."
+      "result": "Passed. Parser, optimizer, main-entry DOM flow, responsive CSS, and browser smoke helper tests all succeeded."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Static bundle was generated in `dist/`."
+      "result": "Passed. Static bundle rebuilt successfully in `dist/`."
     },
     {
-      "command": "node --input-type=module -e \"import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const text = await readFile(new URL('./src/fixtures/samplePlayers.tsv', import.meta.url), 'utf8'); const flow = buildBalanceFromClipboard(text); console.log(JSON.stringify({ errors: flow.errors, scoreDifference: flow.result?.scoreDifference, unrankedDifference: flow.result?.unrankedDifference, totals: flow.result?.teams.map((team) => team.totalScore) }, null, 2));\"",
-      "result": "Returned `errors: []`, `scoreDifference: 0`, `unrankedDifference: 0`, and team totals `[16, 16]` for the bundled sample fixture."
+      "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v \"$name\" || true; done",
+      "result": "No Chromium-family browser binary was found in this sandbox, so `npm run test:browser` was skipped."
     },
     {
-      "command": "python3 -m http.server 4173 -d dist",
-      "result": "Failed in the sandbox with `PermissionError: [Errno 1] Operation not permitted`, so a socket-based local preview smoke test could not be completed here."
+      "command": "node --input-type=module -e \"import { readFile } from 'node:fs/promises'; import { buildBalanceFromClipboard } from './src/lib/appFlow.js'; const sample = await readFile('./src/fixtures/samplePlayers.tsv', 'utf8'); const headerless = sample.split('\\n').slice(1).join('\\n'); for (const [label, text] of [['header', sample], ['headerless', headerless]]) { const balance = buildBalanceFromClipboard(text, { rng: () => 0.5 }); console.log(label, balance.players.length, balance.candidates.length, balance.candidateCount, balance.result.scoreDifference, balance.result.roleScoreDifferenceSum, balance.result.tankScoreDifference, balance.result.unrankedDifference, balance.result.teams.map((team) => team.totalScore).join('/')); }\"",
+      "result": "Confirmed both header and headerless sample input paths produce 10 parsed players, 6 visible candidates, 113400 evaluated combinations, and a selected candidate with `scoreDifference=0`, `roleScoreDifferenceSum=0`, `tankScoreDifference=0`, `unrankedDifference=0`, `teamTotals=14/14`."
     }
   ],
   "known_gaps": [
-    "The delivered app is a zero-dependency static ES-module app rather than the planner's Vite + React runtime baseline.",
-    "Browser-level visual/manual QA against a live local server was not possible in this sandbox because opening a listening port is blocked.",
-    "Nice-to-have scope remains out of scope: role preference ordering, saved player pools, and support for games beyond Overwatch."
+    "`npm run test:browser` could not be executed here because no Chromium-family browser is installed in the sandbox.",
+    "The browser smoke harness validates built JS/CSS through a temporary HTML shell; it does not literally open `dist/index.html`."
   ],
   "handoff_notes": [
-    "Core logic lives in `src/lib/parseClipboard.js` and `src/lib/optimizer.js`; UI rendering is in `src/lib/render.js` with event wiring in `src/main.js`.",
-    "Tier aliases and scoring are centralized in `src/config/gameConfig.js`, and the bundled sample input is `src/fixtures/samplePlayers.tsv`.",
-    "Build output is fully static in `dist/`; `README.md` documents local run/test/build flow and GitHub Pages deployment assumptions."
+    "This round intentionally prioritized candidate-combination expansion over closing the older real-browser/mobile QA gap, which remains non-blocking per the current spec.",
+    "QA should run `npm run test:browser -- --browser=/path/to/chromium` in a browser-equipped environment if real engine evidence is needed for release.",
+    "`dist/` has been rebuilt and now reflects the candidate-feature changes."
   ],
   "files_of_interest": [
-    "package.json",
-    "index.html",
-    "src/config/gameConfig.js",
-    "src/lib/parseClipboard.js",
-    "src/lib/optimizer.js",
-    "src/lib/render.js",
-    "src/main.js",
-    "src/styles.css",
-    "src/fixtures/samplePlayers.tsv",
-    "README.md",
-    "FINAL_OUTPUT.md"
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/parseClipboard.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/optimizer.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/render.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/main.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/optimizer.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
+    "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"
   ],
   "ready_for_qa": true
 }

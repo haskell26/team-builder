@@ -41,6 +41,7 @@ body {
 .team-header > *,
 .team-column,
 .summary-card,
+.candidate-card,
 .assignment-card {
   min-width: 0;
 }
@@ -50,6 +51,8 @@ body {
 .section-heading p,
 .guide-list-item,
 .assumption-list li,
+.candidate-team-totals,
+.candidate-stats,
 .assignment-name,
 .assignment-meta,
 .summary-card strong,
@@ -345,6 +348,7 @@ button {
   padding: 16px;
   border-radius: 18px;
   background: linear-gradient(135deg, rgba(17, 76, 81, 0.08), rgba(212, 117, 43, 0.08));
+  border: 1px solid rgba(17, 76, 81, 0.08);
 }
 
 .summary-card span {
@@ -357,6 +361,89 @@ button {
   display: block;
   margin-top: 8px;
   font-size: 1.45rem;
+}
+
+.candidate-section,
+.detail-section {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-section {
+  margin-top: 24px;
+}
+
+.result-subsection h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.candidate-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.candidate-card {
+  width: 100%;
+  padding: 16px;
+  border: 1px solid rgba(17, 76, 81, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text);
+  text-align: left;
+}
+
+.candidate-card-selected {
+  border-color: rgba(17, 76, 81, 0.34);
+  background: linear-gradient(140deg, rgba(17, 76, 81, 0.11), rgba(212, 117, 43, 0.12));
+  box-shadow: 0 18px 32px rgba(17, 76, 81, 0.12);
+}
+
+.candidate-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.candidate-kicker {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+}
+
+.candidate-difference {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(17, 76, 81, 0.08);
+  color: var(--primary);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.candidate-team-totals,
+.result-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.candidate-team-totals {
+  margin-top: 14px;
+}
+
+.candidate-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+  color: var(--text);
+  font-size: 0.92rem;
 }
 
 .teams-grid {
@@ -477,7 +564,9 @@ button {
 @media (max-width: 960px) {
   .main-grid,
   .teams-grid,
-  .result-summary {
+  .result-summary,
+  .candidate-list,
+  .candidate-stats {
     grid-template-columns: 1fr;
   }
 

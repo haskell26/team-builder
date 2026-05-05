@@ -15,10 +15,7 @@ class FakeElement {
 
   set innerHTML(value) {
     this._innerHTML = value;
-
-    if (this.id === 'app') {
-      this.ownerDocument.registerMarkup(value);
-    }
+    this.ownerDocument.registerMarkup(value);
   }
 
   addEventListener(type, listener) {
@@ -76,10 +73,7 @@ class FakeDocument {
 
     for (const match of matches) {
       const id = match[1];
-
-      if (!this.elements.has(id)) {
-        this.registerElement(new FakeElement(id, this));
-      }
+      this.registerElement(new FakeElement(id, this));
     }
   }
 

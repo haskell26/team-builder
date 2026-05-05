@@ -41,12 +41,24 @@ export interface TeamSummary {
   assignments: TeamAssignment[];
   totalScore: number;
   unrankedCount: number;
+  roleTotals: Record<Role, number>;
 }
 
-export interface BalanceResult {
+export interface BalanceCandidate {
+  id: string;
+  candidateKey: string;
+  comparisonKey: string;
+  rank: number;
   teams: TeamSummary[];
   scoreDifference: number;
+  roleScoreDifferences: Record<Role, number>;
+  roleScoreDifferenceSum: number;
+  tankScoreDifference: number;
   unrankedDifference: number;
-  comparisonKey: string;
+}
+
+export interface BalanceResult extends BalanceCandidate {
   candidateCount: number;
+  displayedCandidateCount: number;
+  candidates: BalanceCandidate[];
 }

@@ -5,6 +5,12 @@ const ROLE_HEADER_MAP = {
   damage: '딜러 티어',
   support: '힐러 티어',
 };
+const HEADER_COLUMN_INDEX = {
+  '유저 이름': 0,
+  '탱커 티어': 1,
+  '딜러 티어': 2,
+  '힐러 티어': 3,
+};
 
 function splitClipboardLine(line) {
   return line.split('\t').map((cell) => cell.trim());
@@ -31,11 +37,21 @@ function buildTierSnapshot(rawValue) {
   };
 }
 
+function isCanonicalHeaderRow(cells) {
+  return EXPECTED_HEADERS.every((header, index) => cells[index] === header);
+}
+
 export function parseClipboard(rawText) {
   const text = rawText.replace(/\ufeff/g, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const trimmedText = text.trim();
+  const lines = text.split('\n');
 
-  if (!trimmedText) {
+  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
+    lines.pop();
+  }
+
+  const firstContentLineIndex = lines.findIndex((line) => line.trim());
+
+  if (firstContentLineIndex < 0) {
     return {
       errors: ['복사한 표를 붙여넣어 주세요.'],
       players: [],
@@ -43,40 +59,26 @@ export function parseClipboard(rawText) {
     };
   }
 
-  const lines = text.split('\n');
-
-  while (lines.length > 0 && !lines[lines.length - 1].trim()) {
-    lines.pop();
-  }
-
-  const headers = splitClipboardLine(lines[0]);
-  const headerIndexMap = new Map(headers.map((header, index) => [header, index]));
+  const rows = lines
+    .map((line, index) => ({
+      line,
+      rowNumber: index + 1,
+    }))
+    .slice(firstContentLineIndex);
+  const firstRowCells = splitClipboardLine(rows[0].line);
+  const hasHeader = isCanonicalHeaderRow(firstRowCells);
+  const headers = hasHeader ? firstRowCells : [];
+  const dataRows = rows.slice(hasHeader ? 1 : 0).filter((row) => row.line.trim());
   const errors = [];
 
-  for (const expectedHeader of EXPECTED_HEADERS) {
-    if (!headerIndexMap.has(expectedHeader)) {
-      errors.push(`헤더에 \`${expectedHeader}\` 열이 필요합니다.`);
-    }
+  if (dataRows.length !== MAX_PLAYERS) {
+    errors.push(`플레이어는 정확히 ${MAX_PLAYERS}명이어야 합니다. 현재 ${dataRows.length}명입니다.`);
   }
 
-  if (errors.length > 0) {
-    return {
-      errors,
-      players: [],
-      headers,
-    };
-  }
-
-  const dataLines = lines.slice(1).filter((line) => line.trim());
-
-  if (dataLines.length !== MAX_PLAYERS) {
-    errors.push(`플레이어는 정확히 ${MAX_PLAYERS}명이어야 합니다. 현재 ${dataLines.length}명입니다.`);
-  }
-
-  const players = dataLines.map((line, index) => {
-    const rowNumber = index + 2;
-    const cells = splitClipboardLine(line);
-    const name = cells[headerIndexMap.get('유저 이름')] ?? '';
+  const players = dataRows.map((row, index) => {
+    const rowNumber = hasHeader ? row.rowNumber : index + 1;
+    const cells = splitClipboardLine(row.line);
+    const name = cells[HEADER_COLUMN_INDEX['유저 이름']] ?? '';
     const player = {
       name,
       sourceRow: rowNumber,
@@ -93,7 +95,7 @@ export function parseClipboard(rawText) {
 
     for (const role of ROLE_ORDER) {
       const headerName = ROLE_HEADER_MAP[role];
-      const rawTier = cells[headerIndexMap.get(headerName)] ?? '';
+      const rawTier = cells[HEADER_COLUMN_INDEX[headerName]] ?? '';
 
       if (!rawTier) {
         errors.push(`${rowNumber}행: ${headerName} 값이 비어 있습니다.`);

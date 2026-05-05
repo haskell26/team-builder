@@ -94,28 +94,29 @@ export function createHarnessHtml({ fixtureText, mainModuleUrl, styles, viewport
         balanceButton.click();
         await waitForPaint();
 
-        const summaryValues = [...document.querySelectorAll('.summary-card strong')].map((node) =>
-          (node.textContent || '').trim(),
-        );
+        const readSummaryValue = (key) =>
+          (document.querySelector('[data-summary-key="' + key + '"] strong')?.textContent || '').trim();
+        const candidateCards = [...document.querySelectorAll('.candidate-card')];
         const teamColumns = [...document.querySelectorAll('.team-column')];
 
         output.feedbackText = (document.querySelector('#feedback-panel')?.textContent || '').trim();
         output.previewText = (document.querySelector('#preview-panel')?.textContent || '').trim();
         output.resultText = (document.querySelector('#result-content')?.textContent || '').trim();
+        output.candidateCountVisible = candidateCards.length;
         output.teamCount = teamColumns.length;
         output.assignmentsPerTeam = teamColumns.map((column) => column.querySelectorAll('.assignment-card').length);
         output.unrankedAssignments = document.querySelectorAll('.assignment-card-unranked').length;
-        output.summaryValues = summaryValues;
-        output.scoreDifference = Number.parseInt(summaryValues[0], 10);
-        output.unrankedDifference = Number.parseInt(summaryValues[1], 10);
+        output.scoreDifference = Number.parseInt(readSummaryValue('score-difference'), 10);
+        output.unrankedDifference = Number.parseInt(readSummaryValue('unranked-difference'), 10);
         output.documentScrollWidth = document.documentElement.scrollWidth;
         output.bodyScrollWidth = document.body.scrollWidth;
         output.pageShellScrollWidth = document.querySelector('.page-shell')?.scrollWidth ?? null;
         output.hasHorizontalOverflow =
           document.documentElement.scrollWidth > window.innerWidth || document.body.scrollWidth > window.innerWidth;
         output.previewHasSampleName = output.previewText.includes('하늘방패');
-        output.resultHasTeamLabels = output.resultText.includes('1팀') && output.resultText.includes('2팀');
-        output.feedbackLooksSuccessful = output.feedbackText.includes('검증이 완료되었습니다');
+        output.resultHasCandidateList = output.resultText.includes('추천 후보 6개');
+        output.resultHasTeamLabels = output.resultText.includes('팀 A') && output.resultText.includes('팀 B');
+        output.feedbackLooksSuccessful = output.feedbackText.includes('검증과 계산이 완료되었습니다');
       } catch (error) {
         output.error = error instanceof Error ? error.message : String(error);
       }
@@ -152,6 +153,10 @@ export function assertViewportResult(result, viewport) {
     issues.push(`팀 개수가 2가 아닙니다: ${result.teamCount}`);
   }
 
+  if (result.candidateCountVisible !== 6) {
+    issues.push(`보이는 후보 개수가 6개가 아닙니다: ${result.candidateCountVisible}`);
+  }
+
   if (!Array.isArray(result.assignmentsPerTeam) || result.assignmentsPerTeam.some((count) => count !== 5)) {
     issues.push(`각 팀 인원 수가 5명이 아닙니다: ${JSON.stringify(result.assignmentsPerTeam)}`);
   }
@@ -168,8 +173,12 @@ export function assertViewportResult(result, viewport) {
     issues.push('미리보기에서 샘플 플레이어 이름을 찾지 못했습니다.');
   }
 
+  if (!result.resultHasCandidateList) {
+    issues.push('결과 영역에서 추천 후보 목록을 찾지 못했습니다.');
+  }
+
   if (!result.resultHasTeamLabels) {
-    issues.push('결과 영역에서 1팀 / 2팀 라벨을 찾지 못했습니다.');
+    issues.push('결과 영역에서 팀 A / 팀 B 라벨을 찾지 못했습니다.');
   }
 
   if (!result.feedbackLooksSuccessful) {
