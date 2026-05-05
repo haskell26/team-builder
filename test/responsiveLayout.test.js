@@ -11,12 +11,14 @@ test('responsive layout keeps preview cards, editor boards, and overflow contain
 
   assert.match(styles, /body\s*\{[\s\S]*min-width:\s*320px;/);
   assert.match(styles, /\.button-row\s*\{[\s\S]*flex-wrap:\s*wrap;/);
+  assert.match(styles, /\.role-tier-row\s*\{[\s\S]*flex-wrap:\s*wrap;/);
   assert.match(styles, /\.table-frame\s*\{[\s\S]*overflow-x:\s*auto;/);
   assert.match(styles, /\.sample-pre\s*\{[\s\S]*overflow-x:\s*auto;/);
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.main-grid,[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.candidate-list,[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.candidate-compact-grid,[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.editor-grid[\s\S]*grid-template-columns:\s*1fr;/);
+  assert.match(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.preference-controls[\s\S]*grid-template-columns:\s*1fr;/);
   assert.match(styles, /@media \(max-width:\s*640px\)\s*\{[\s\S]*\.page-shell\s*\{[\s\S]*width:\s*min\(100% - 20px,\s*1180px\);/);
 });
 
@@ -41,4 +43,15 @@ test('tier color contract includes all eight required role-independent classes',
   assert.match(styles, /\.tier-diamond\s*\{/);
   assert.match(styles, /\.tier-master\s*\{/);
   assert.match(styles, /\.tier-grandmaster\s*\{/);
+});
+
+test('preference and saved-player UI styles are present for the new workflow', async () => {
+  const styles = await loadStyles();
+
+  assert.match(styles, /\.saved-player-list(?:\s*,|\s*\{)/);
+  assert.match(styles, /\.roster-list\s*\{/);
+  assert.match(styles, /\.preference-control\s*\{/);
+  assert.match(styles, /\.preference-badge-1\s*\{/);
+  assert.match(styles, /\.preference-badge-2\s*\{/);
+  assert.match(styles, /\.preference-badge-3\s*\{/);
 });

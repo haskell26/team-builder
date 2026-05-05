@@ -1,40 +1,24 @@
 {
-  "verdict": "revise",
-  "summary": "Core round-3 behavior is present and the automated suite/build pass, but the workspace is not release-ready yet: the shipped UI still exposes English product copy despite the Korean-language requirement, and the swap editor leaves its internal team summary data stale after edits.",
-  "score": 83,
+  "verdict": "pass",
+  "summary": "No blocking QA findings in the inspected workspace. The shipped app matches the round-3 scope I could verify directly: 6 compact candidate previews, Korean-first score-hidden UI, editable role preferences, localStorage-backed saved-player save/load with exact-10 gating, candidate selection, and immediate two-click swap editing with refreshed tier/preference metadata.",
+  "score": 96,
   "strengths": [
-    "`npm test` and `npm run build` both pass in the current workspace.",
-    "Header-present and headerless clipboard parsing both work, with Korean validation messages for bad input.",
-    "The compact 6-candidate preview flow, default candidate load, and two-click cross-role swap interaction are implemented and reproducible.",
-    "README and FINAL_OUTPUT document the new compact-preview/swap workflow and honestly call out the skipped real-browser check."
+    "`npm test` and `npm run build` both pass on the current workspace state, and the output remains a static frontend bundle under `dist/`.",
+    "Direct source inspection plus targeted runtime checks confirm the canonical `matchPlayers` flow, saved-preference hydration for pasted names, exact-10 saved-player loading, and textarea rewrite with canonical header TSV.",
+    "`src/lib/optimizer.js` and runtime verification confirm 6 visible candidates, valid `1탱 2딜 2힐` composition per team, no duplicate player assignment within a candidate, and ranking keyed by total score difference, role-score-difference sum, tank difference, then unranked difference.",
+    "`src/lib/editor.js`, `src/lib/render.js`, and the app-flow checks confirm that candidate selection loads a fresh editor, two slot clicks swap players immediately, and destination-slot tier plus preference-rank data recalculate after the swap while numeric score surfaces stay hidden.",
+    "`README.md` and `FINAL_OUTPUT.md` are aligned with the shipped behavior and accurately disclose the remaining optional browser-smoke gap in this sandbox."
   ],
-  "findings": [
-    {
-      "severity": "high",
-      "title": "User-facing UI is still mixed-language instead of Korean-only",
-      "detail": "The spec lists `product language in korean` as a must-have, but the shipped UI still renders English strings in primary result surfaces. `src/config/gameConfig.js:11`, `src/config/gameConfig.js:17`, and `src/config/gameConfig.js:23` define compact role badges as `TANK`, `DPS`, and `SUP`; `src/lib/render.js:86` renders `Final Edit`; and `src/constants/copy.js:26` shows `compact preview` in the main result hint. Rendering the result HTML from the sample fixture also confirmed these strings are present in the live output.",
-      "fix": "Translate all visible UI copy and role badges to Korean, then add a DOM-level test that fails if shipped UI text includes these English labels."
-    },
-    {
-      "severity": "medium",
-      "title": "Swap edits leave the editor's internal team model inconsistent",
-      "detail": "`src/lib/editor.js:26` only rehydrates `team.slots`, and `src/lib/editor.js:82` updates only those slots during swaps while copying the rest of each `team` object unchanged. That leaves `assignments`, `roleTotals`, `totalScore`, and `unrankedCount` frozen at the pre-swap candidate values. Reproduced with the sample fixture: after swapping `A-tank-1` and `B-support-2`, the visible slot changes to `하늘방패`, but `editor.teams[0].assignments` still reports `빛의수호` as the tank.",
-      "fix": "Rebuild each full `TeamSummary` from the current slot/player state on editor creation and after every swap, and add a unit test asserting that assignments and derived totals change with the swap."
-    }
-  ],
-  "required_fixes": [
-    "Remove the remaining English product copy from the shipped UI (`Final Edit`, `compact preview`, `TANK/DPS/SUP`) so the product surface is fully Korean.",
-    "Make the editable team model internally coherent after swaps by recomputing assignments and derived team metrics, not just the rendered slots.",
-    "Add regression tests for both the Korean-only UI copy requirement and the post-swap team-summary consistency."
-  ],
+  "findings": [],
+  "required_fixes": [],
   "verification_run": [
-    "`npm test` — passed (6/6 test files).",
-    "`npm run build` — passed.",
-    "`node -v` — `v22.17.1`.",
-    "`for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do printf '%s: ' \"$name\"; command -v \"$name\" || true; done` — no Chromium-family browser found, so `npm run test:browser` could not be run here.",
-    "Node smoke script against `buildBalanceFromClipboard(...)` — confirmed 6 candidates render, the first candidate auto-loads into the editor, header/headerless input both parse, and cross-role swap refreshes visible tier text.",
-    "Node render check against `renderResult(...)` — confirmed live HTML still contains `Final Edit` and `TANK/DPS/SUP`.",
-    "Node state check against `applySlotSelection(...)` — confirmed swapped slot names update while `editor.teams[0].assignments` remains stale."
+    "`npm test`",
+    "`npm run build`",
+    "`npm run test:browser` (fails here because no Chromium-family browser binary is installed in the sandbox; current spec marks this gap non-blocking)",
+    "`node -v`",
+    "`rg -n \"Final Edit|compact preview|TANK|DPS|SUP|scoreDifference|팀 A 총점|팀 B 총점|점수 차이|역할군 차이 합|탱커 차이|언랭 분배 차이\" src dist README.md FINAL_OUTPUT.md`",
+    "Targeted `node --input-type=module` checks against `src/lib/appFlow.js`, `src/lib/playerStore.js`, `src/lib/optimizer.js`, `src/lib/editor.js`, and `src/lib/render.js` to verify header/headerless parsing, saved-player hydration, 6-candidate rendering, hidden-score UI, candidate reselection reset, and swap recalculation",
+    "Inspected `src/main.js`, `src/lib/appFlow.js`, `src/lib/optimizer.js`, `src/lib/editor.js`, `src/lib/render.js`, `src/lib/playerStore.js`, `src/lib/preferences.js`, `src/lib/parseClipboard.js`, `src/styles.css`, `README.md`, and `FINAL_OUTPUT.md`"
   ],
-  "release_readiness": "Not ready for release until the UI is fully localized to Korean and the swap editor rebuilds a coherent post-edit team model."
+  "release_readiness": "Release-ready for this iteration. Residual risk remains around optional real-browser smoke execution because Chromium is unavailable in this sandbox, but that gap is explicitly documented and is non-blocking under the current spec."
 }

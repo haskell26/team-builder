@@ -1,9 +1,33 @@
+class FakeLocalStorage {
+  constructor(entries = {}) {
+    this.store = new Map(Object.entries(entries));
+  }
+
+  getItem(key) {
+    return this.store.has(key) ? this.store.get(key) : null;
+  }
+
+  setItem(key, value) {
+    this.store.set(key, `${value}`);
+  }
+
+  removeItem(key) {
+    this.store.delete(key);
+  }
+
+  clear() {
+    this.store.clear();
+  }
+}
+
 class FakeElement {
   constructor(id, ownerDocument) {
     this.id = id;
     this.ownerDocument = ownerDocument;
     this.listeners = new Map();
     this.value = '';
+    this.checked = false;
+    this.disabled = false;
     this.scrolled = false;
     this.scrollArguments = [];
     this._innerHTML = '';
@@ -48,6 +72,10 @@ class FakeElement {
   }
 
   click() {
+    if (this.disabled) {
+      return;
+    }
+
     this.dispatchEvent('click');
   }
 
@@ -86,20 +114,24 @@ class FakeDocument {
   }
 }
 
-export async function loadMainIntoFakeDom() {
+export async function loadMainIntoFakeDom({ storageEntries = {} } = {}) {
   const previousDocument = globalThis.document;
   const previousWindow = globalThis.window;
+  const previousLocalStorage = globalThis.localStorage;
   const document = new FakeDocument();
-  const window = { document };
+  const localStorage = new FakeLocalStorage(storageEntries);
+  const window = { document, localStorage };
 
   globalThis.document = document;
   globalThis.window = window;
+  globalThis.localStorage = localStorage;
 
   const moduleUrl = new URL('../src/main.js', import.meta.url);
   await import(`${moduleUrl.href}?test=${Date.now()}-${Math.random()}`);
 
   return {
     document,
+    localStorage,
     cleanup() {
       if (previousDocument === undefined) {
         delete globalThis.document;
@@ -111,6 +143,12 @@ export async function loadMainIntoFakeDom() {
         delete globalThis.window;
       } else {
         globalThis.window = previousWindow;
+      }
+
+      if (previousLocalStorage === undefined) {
+        delete globalThis.localStorage;
+      } else {
+        globalThis.localStorage = previousLocalStorage;
       }
     },
   };

@@ -1,7 +1,35 @@
 import { ROLE_ORDER } from '../config/gameConfig.js';
+import { getPreferenceMeta, resolvePreferenceOrder, summarizePreferenceRanks } from './preferences.js';
+
+function cloneTierSnapshot(tier) {
+  return {
+    key: tier.key,
+    label: tier.label,
+    description: tier.description,
+    score: tier.score,
+    isUnranked: tier.isUnranked,
+    rawValue: tier.rawValue,
+  };
+}
+
+function cloneRoleMap(roles) {
+  return ROLE_ORDER.reduce((nextRoles, role) => {
+    nextRoles[role] = cloneTierSnapshot(roles[role]);
+    return nextRoles;
+  }, {});
+}
 
 function clonePlayerPool(players) {
-  return Object.fromEntries(players.map((player) => [player.id, player]));
+  return Object.fromEntries(
+    players.map((player) => [
+      player.id,
+      {
+        ...player,
+        roles: cloneRoleMap(player.roles),
+        preferenceOrder: resolvePreferenceOrder(player),
+      },
+    ]),
+  );
 }
 
 function hydrateSlot(slot, playerPool) {
@@ -12,6 +40,7 @@ function hydrateSlot(slot, playerPool) {
   }
 
   const tier = player.roles[slot.role];
+  const preferenceMeta = getPreferenceMeta(player.preferenceOrder, slot.role);
 
   return {
     ...slot,
@@ -22,11 +51,11 @@ function hydrateSlot(slot, playerPool) {
     tierDescription: tier.description,
     score: tier.score,
     isUnranked: tier.isUnranked,
+    preferenceOrder: preferenceMeta.preferenceOrder,
+    preferenceRank: preferenceMeta.preferenceRank,
+    preferenceLabel: preferenceMeta.preferenceLabel,
+    preferenceFitKey: preferenceMeta.preferenceFitKey,
   };
-}
-
-function hydrateTeams(teams, playerPool) {
-  return teams.map((team) => hydrateTeam(team, playerPool));
 }
 
 function getRoleSortIndex(role) {
@@ -45,6 +74,10 @@ function createAssignment(slot) {
     tierDescription: slot.tierDescription,
     score: slot.score,
     isUnranked: slot.isUnranked,
+    preferenceOrder: slot.preferenceOrder,
+    preferenceRank: slot.preferenceRank,
+    preferenceLabel: slot.preferenceLabel,
+    preferenceFitKey: slot.preferenceFitKey,
   };
 }
 
@@ -75,6 +108,7 @@ function hydrateTeam(team, playerPool) {
     totalScore,
     unrankedCount,
     roleTotals,
+    preferenceSummary: summarizePreferenceRanks(slots),
   };
 }
 
@@ -86,7 +120,7 @@ function mapSlotIds(editor) {
 
 export function createEditableCandidate(candidate, players) {
   const playerPool = clonePlayerPool(players);
-  const teams = hydrateTeams(candidate.teams, playerPool);
+  const teams = candidate.teams.map((team) => hydrateTeam(team, playerPool));
 
   return {
     candidateId: candidate.id,
@@ -95,6 +129,20 @@ export function createEditableCandidate(candidate, players) {
     lastAction: 'idle',
     playerPool,
     teams,
+  };
+}
+
+export function refreshEditableCandidate(editor, players) {
+  if (!editor) {
+    return null;
+  }
+
+  const playerPool = clonePlayerPool(players);
+
+  return {
+    ...editor,
+    playerPool,
+    teams: editor.teams.map((team) => hydrateTeam(team, playerPool)),
   };
 }
 

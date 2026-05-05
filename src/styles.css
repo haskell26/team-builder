@@ -46,6 +46,17 @@ body {
 .page-shell,
 .main-grid > *,
 .hero-title-row > *,
+.saved-toolbar,
+.preview-toolbar,
+.saved-player-card,
+.saved-player-body,
+.saved-player-header,
+.roster-card,
+.roster-card-header,
+.role-tier-row,
+.role-tier-pair,
+.preference-controls,
+.preference-control,
 .candidate-card,
 .candidate-compact-grid > *,
 .mini-team-column,
@@ -59,10 +70,12 @@ body {
 .hero-title-row h1,
 .hero-subtitle,
 .section-heading p,
+.saved-toolbar-hint,
+.saved-panel-message,
 .guide-list-item,
 .assumption-list li,
-.preview-table th,
-.preview-table td,
+.roster-card-meta,
+.saved-player-preference,
 .mini-slot-name,
 .editor-slot-name,
 .editor-guide {
@@ -218,6 +231,12 @@ button {
   font-weight: 700;
 }
 
+.primary-button:disabled,
+.ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
 .primary-button {
   margin-left: auto;
   background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
@@ -314,6 +333,160 @@ button {
   background: rgba(17, 76, 81, 0.05);
   color: var(--muted);
   line-height: 1.7;
+}
+
+.saved-toolbar,
+.preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.saved-toolbar-title {
+  display: block;
+  font-size: 1.02rem;
+}
+
+.saved-toolbar-meta,
+.saved-toolbar-hint,
+.saved-panel-message {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.saved-panel-message {
+  padding: 12px 14px;
+  border-radius: 14px;
+}
+
+.saved-panel-message-success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.saved-panel-message-warning {
+  background: rgba(212, 117, 43, 0.12);
+  color: #8a4a1b;
+}
+
+.saved-panel-message-error {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.saved-player-list,
+.roster-list {
+  display: grid;
+  gap: 14px;
+}
+
+.saved-player-card,
+.roster-card {
+  border: 1px solid rgba(17, 76, 81, 0.1);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.saved-player-card {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+}
+
+.saved-player-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 6px;
+  accent-color: var(--primary);
+  flex: 0 0 auto;
+}
+
+.saved-player-body,
+.roster-card {
+  display: grid;
+  gap: 14px;
+}
+
+.roster-card {
+  padding: 16px;
+}
+
+.saved-player-header,
+.roster-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.saved-player-name,
+.roster-card-name {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.saved-player-preference,
+.roster-card-meta {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(17, 76, 81, 0.08);
+  color: var(--primary);
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.role-tier-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.role-tier-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preference-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.preference-control {
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.preference-select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(17, 76, 81, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text);
+}
+
+.preference-select:focus {
+  outline: 2px solid rgba(17, 76, 81, 0.18);
+  border-color: rgba(17, 76, 81, 0.34);
 }
 
 .table-frame {
@@ -437,7 +610,7 @@ button {
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .candidate-kicker,
@@ -460,6 +633,56 @@ button {
   color: var(--primary);
   font-size: 0.88rem;
   font-weight: 700;
+}
+
+.preference-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.preference-summary-row span,
+.preference-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.preference-summary-row span {
+  background: rgba(17, 76, 81, 0.08);
+  color: var(--primary);
+}
+
+.preference-badge-compact {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 0.72rem;
+}
+
+.preference-badge-1 {
+  background: rgba(30, 108, 84, 0.14);
+  color: #15513f;
+}
+
+.preference-badge-2 {
+  background: rgba(17, 76, 81, 0.12);
+  color: #0e494d;
+}
+
+.preference-badge-3 {
+  background: rgba(212, 117, 43, 0.14);
+  color: #8a4a1b;
+}
+
+.preference-badge-other {
+  background: rgba(180, 61, 45, 0.12);
+  color: var(--danger);
 }
 
 .candidate-compact-grid,
@@ -493,11 +716,20 @@ button {
 }
 
 .mini-slot-top,
-.editor-slot-header {
+.editor-slot-header,
+.editor-slot-top {
   display: flex;
   justify-content: space-between;
   gap: 10px;
   align-items: center;
+}
+
+.mini-slot-bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
 }
 
 .mini-slot-order,
@@ -562,6 +794,10 @@ button {
   background: linear-gradient(140deg, rgba(212, 117, 43, 0.14), rgba(17, 76, 81, 0.08));
 }
 
+.editor-slot-top {
+  align-items: flex-start;
+}
+
 .role-badge {
   display: inline-flex;
   align-items: center;
@@ -599,6 +835,19 @@ button {
   .candidate-list,
   .candidate-compact-grid,
   .editor-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-toolbar,
+  .preview-toolbar,
+  .saved-player-header,
+  .roster-card-header,
+  .editor-slot-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .preference-controls {
     grid-template-columns: 1fr;
   }
 

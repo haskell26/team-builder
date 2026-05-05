@@ -1,8 +1,9 @@
 import { UI_COPY, SAMPLE_FORMAT_LINES } from '../constants/copy.js';
 import { ROLE_ORDER, getRoleConfig, getTierGuideRows } from '../config/gameConfig.js';
+import { formatPreferenceSummary } from './preferences.js';
 
 function escapeHtml(value) {
-  return value
+  return `${value}`
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
@@ -14,12 +15,32 @@ function getTierClassName(tierKey) {
   return `tier-${tierKey}`;
 }
 
+function getPreferenceSourceLabel(preferenceSource) {
+  if (preferenceSource === 'manual') {
+    return '직접 수정';
+  }
+
+  if (preferenceSource === 'saved') {
+    return '저장 불러옴';
+  }
+
+  return '자동 추천';
+}
+
 function renderRoleBadge(role, { compact = false } = {}) {
   const config = getRoleConfig(role);
 
   return `<span class="role-badge ${config.accentClass} ${compact ? 'role-badge-compact' : ''}">${escapeHtml(
     compact ? config.shortLabel : config.label,
   )}</span>`;
+}
+
+function renderPreferenceBadge(preferenceRank, { compact = false } = {}) {
+  const label = preferenceRank ? `${preferenceRank}순위` : '선호 외';
+
+  return `<span class="preference-badge preference-badge-${preferenceRank ?? 'other'} ${
+    compact ? 'preference-badge-compact' : ''
+  }">${escapeHtml(label)}</span>`;
 }
 
 function renderTierToken(tier) {
@@ -35,15 +56,110 @@ function renderGuideItem(tier) {
   `;
 }
 
+function renderRoleTierSummary(roles) {
+  return ROLE_ORDER.map(
+    (role) => `
+      <span class="role-tier-pair">
+        ${renderRoleBadge(role, { compact: true })}
+        ${renderTierToken(roles[role])}
+      </span>
+    `,
+  ).join('');
+}
+
+function renderPreferenceSelect(playerIndex, rankIndex, selectedRole) {
+  const options = ROLE_ORDER.map((role) => {
+    const roleConfig = getRoleConfig(role);
+    return `<option value="${escapeHtml(role)}"${role === selectedRole ? ' selected' : ''}>${escapeHtml(
+      roleConfig.label,
+    )}</option>`;
+  }).join('');
+
+  return `
+    <label class="preference-control" for="preference-select-${playerIndex}-${rankIndex}">
+      <span>${rankIndex + 1}순위</span>
+      <select id="preference-select-${playerIndex}-${rankIndex}" class="preference-select">
+        ${options}
+      </select>
+    </label>
+  `;
+}
+
+function renderRosterPlayer(player, index) {
+  return `
+    <article class="roster-card">
+      <div class="roster-card-header">
+        <div>
+          <h3 class="roster-card-name">${escapeHtml(player.name)}</h3>
+          <p class="roster-card-meta">역할 선호도는 후보 카드와 편집 슬롯의 순위 배지에 즉시 반영됩니다.</p>
+        </div>
+        <span class="source-pill">${escapeHtml(getPreferenceSourceLabel(player.preferenceSource))}</span>
+      </div>
+
+      <div class="role-tier-row">
+        ${renderRoleTierSummary(player.roles)}
+      </div>
+
+      <div class="preference-controls">
+        ${player.preferenceOrder.map((role, rankIndex) => renderPreferenceSelect(index, rankIndex, role)).join('')}
+      </div>
+    </article>
+  `;
+}
+
+function renderSavedPlayer(record, index, selectedIds) {
+  return `
+    <label class="saved-player-card" for="saved-player-checkbox-${index}">
+      <input
+        id="saved-player-checkbox-${index}"
+        class="saved-player-checkbox"
+        type="checkbox"
+        ${selectedIds.has(record.id) ? 'checked' : ''}
+      />
+      <div class="saved-player-body">
+        <div class="saved-player-header">
+          <h3 class="saved-player-name">${escapeHtml(record.name)}</h3>
+          <span class="saved-player-preference">${escapeHtml(formatPreferenceSummary(record.preferenceOrder))}</span>
+        </div>
+        <div class="role-tier-row">
+          ${renderRoleTierSummary(record.roles)}
+        </div>
+      </div>
+    </label>
+  `;
+}
+
+function renderSavedPanelMessage(message, type) {
+  if (!message) {
+    return '';
+  }
+
+  return `<p class="saved-panel-message saved-panel-message-${type}">${escapeHtml(message)}</p>`;
+}
+
+function renderPreferenceSummary(summary) {
+  return `
+    <div class="preference-summary-row">
+      <span>1순위 ${summary.rank1}</span>
+      <span>2순위 ${summary.rank2}</span>
+      <span>3순위 ${summary.rank3}</span>
+      ${summary.other > 0 ? `<span>선호 외 ${summary.other}</span>` : ''}
+    </div>
+  `;
+}
+
 function renderMiniSlot(slot) {
   return `
     <div class="mini-slot-card">
       <div class="mini-slot-top">
         ${renderRoleBadge(slot.role, { compact: true })}
-        <span class="mini-slot-order">${slot.slotIndex}</span>
+        ${renderPreferenceBadge(slot.preferenceRank, { compact: true })}
       </div>
       <strong class="mini-slot-name tier-fill ${getTierClassName(slot.tierKey)}">${escapeHtml(slot.playerName)}</strong>
-      <span class="mini-slot-tier">${escapeHtml(slot.tierDescription)}</span>
+      <div class="mini-slot-bottom">
+        <span class="mini-slot-tier">${escapeHtml(slot.tierDescription)}</span>
+        <span class="mini-slot-order">${slot.slotIndex}번 슬롯</span>
+      </div>
     </div>
   `;
 }
@@ -69,9 +185,12 @@ function renderEditorSlot(slot, selectedSlotId) {
       type="button"
       aria-pressed="${isSelected ? 'true' : 'false'}"
     >
-      <div class="editor-slot-header">
-        ${renderRoleBadge(slot.role)}
-        <span class="editor-slot-label">${escapeHtml(slot.teamLabel)} ${slot.slotIndex}</span>
+      <div class="editor-slot-top">
+        <div class="editor-slot-header">
+          ${renderRoleBadge(slot.role)}
+          <span class="editor-slot-label">${escapeHtml(slot.teamLabel)} ${slot.slotIndex}</span>
+        </div>
+        ${renderPreferenceBadge(slot.preferenceRank)}
       </div>
       <strong class="editor-slot-name tier-fill ${getTierClassName(slot.tierKey)}">${escapeHtml(slot.playerName)}</strong>
       <p class="editor-slot-tier">${escapeHtml(slot.tierDescription)}</p>
@@ -85,6 +204,7 @@ function renderEditorTeam(team, selectedSlotId) {
       <header class="editor-team-header">
         <p class="editor-team-kicker">최종 편집</p>
         <h4>${escapeHtml(team.label)}</h4>
+        ${renderPreferenceSummary(team.preferenceSummary)}
       </header>
       <div class="editor-slot-grid">
         ${team.slots.map((slot) => renderEditorSlot(slot, selectedSlotId)).join('')}
@@ -110,6 +230,7 @@ function renderCandidateCard(candidate, index, selectedCandidateId) {
         </div>
         <span class="candidate-state">${isSelected ? '편집 중' : '불러오기'}</span>
       </div>
+      ${renderPreferenceSummary(candidate.preferenceSummary)}
       <div class="candidate-compact-grid">
         ${candidate.teams.map(renderCandidateTeam).join('')}
       </div>
@@ -154,7 +275,7 @@ export function renderShell() {
 
           <div class="button-row">
             <button id="sample-button" class="ghost-button" type="button">샘플 데이터 넣기</button>
-            <button id="clear-button" class="ghost-button" type="button">초기화</button>
+            <button id="clear-button" class="ghost-button" type="button">입력 비우기</button>
             <button id="balance-button" class="primary-button" type="button">팀 나누기</button>
           </div>
 
@@ -183,6 +304,14 @@ export function renderShell() {
 
       <section class="panel-card">
         <div class="section-heading">
+          <h2>${escapeHtml(UI_COPY.savedTitle)}</h2>
+          <p>${escapeHtml(UI_COPY.savedHint)}</p>
+        </div>
+        <div id="saved-player-panel"></div>
+      </section>
+
+      <section class="panel-card">
+        <div class="section-heading">
           <h2>${escapeHtml(UI_COPY.previewTitle)}</h2>
           <p>${escapeHtml(UI_COPY.previewHint)}</p>
         </div>
@@ -202,7 +331,7 @@ export function renderShell() {
 
 export function renderFeedback(errors, hasText, hasValidPlayers, hasResult) {
   if (!hasText) {
-    return '<p class="feedback-neutral">표를 붙여넣으면 바로 검증 결과와 미리보기가 표시됩니다.</p>';
+    return '<p class="feedback-neutral">표를 붙여넣거나 저장된 플레이어 10명을 불러오면 바로 검증 결과와 현재 매치가 표시됩니다.</p>';
   }
 
   if (errors.length > 0) {
@@ -217,49 +346,69 @@ export function renderFeedback(errors, hasText, hasValidPlayers, hasResult) {
   }
 
   if (hasResult) {
-    return '<p class="feedback-success">계산이 끝났습니다. 후보를 비교한 뒤 아래 편집 영역에서 바로 스왑할 수 있습니다.</p>';
+    return '<p class="feedback-success">계산이 끝났습니다. 후보 카드를 비교하고 아래 편집 슬롯에서 바로 스왑할 수 있습니다.</p>';
   }
 
   if (hasValidPlayers) {
-    return '<p class="feedback-success">입력 확인이 끝났습니다. 팀 나누기 버튼을 누르면 후보 6개를 계산합니다.</p>';
+    return '<p class="feedback-success">입력 확인이 끝났습니다. 아래에서 역할 선호도를 조정하거나 현재 10명을 저장한 뒤 팀 나누기를 눌러 주세요.</p>';
   }
 
   return '<p class="feedback-neutral">입력 대기 중입니다.</p>';
 }
 
-export function renderPreview(players) {
-  if (players.length === 0) {
-    return `<div class="empty-state">${escapeHtml(UI_COPY.emptyPreview)}</div>`;
-  }
-
-  const headerCells = ROLE_ORDER.map((role) => `<th>${escapeHtml(getRoleConfig(role).label)}</th>`).join('');
-  const rows = players
-    .map((player) => {
-      const tierCells = ROLE_ORDER.map((role) => `<td>${renderTierToken(player.roles[role])}</td>`).join('');
-
-      return `
-        <tr>
-          <td><strong>${escapeHtml(player.name)}</strong></td>
-          ${tierCells}
-        </tr>
-      `;
-    })
-    .join('');
+export function renderSavedPlayers(records, { selectedIds, canLoadSelected, storageAvailable, message, warning }) {
+  const selectedCount = selectedIds.size;
+  const saveSupportHint = storageAvailable
+    ? '체크한 플레이어는 정확히 10명일 때만 현재 매치로 불러올 수 있습니다.'
+    : '이 환경에서는 브라우저 저장소를 사용할 수 없어 저장/불러오기가 비활성화됩니다.';
 
   return `
-    <div class="table-frame">
-      <table class="preview-table">
-        <thead>
-          <tr>
-            <th>유저 이름</th>
-            ${headerCells}
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
+    <div class="saved-toolbar">
+      <div>
+        <strong class="saved-toolbar-title">저장된 플레이어 ${records.length}명</strong>
+        <p class="saved-toolbar-meta">선택 ${selectedCount} / 10</p>
+      </div>
+      <button id="load-selected-button" class="primary-button" type="button" ${canLoadSelected ? '' : 'disabled'}>
+        선택한 10명 불러오기
+      </button>
     </div>
+
+    <p class="saved-toolbar-hint">${escapeHtml(saveSupportHint)}</p>
+    ${renderSavedPanelMessage(message, 'success')}
+    ${renderSavedPanelMessage(warning, storageAvailable ? 'warning' : 'error')}
+
+    ${
+      records.length === 0
+        ? `<div class="empty-state">${escapeHtml(UI_COPY.emptySaved)}</div>`
+        : `<div class="saved-player-list">${records
+            .map((record, index) => renderSavedPlayer(record, index, selectedIds))
+            .join('')}</div>`
+    }
+  `;
+}
+
+export function renderPreview(players, { canSaveCurrentRoster, storageAvailable }) {
+  const buttonDisabled = canSaveCurrentRoster && storageAvailable ? '' : 'disabled';
+  const toolbarHint = storageAvailable
+    ? '선호도 순서는 중복 없이 유지되며, 저장하면 다음 매치에서도 다시 불러올 수 있습니다.'
+    : '현재 환경에서는 브라우저 저장소를 사용할 수 없어 저장 버튼이 비활성화됩니다.';
+
+  return `
+    <div class="preview-toolbar">
+      <div>
+        <strong class="saved-toolbar-title">현재 매치 ${players.length}명</strong>
+        <p class="saved-toolbar-meta">${escapeHtml(toolbarHint)}</p>
+      </div>
+      <button id="save-current-button" class="ghost-button" type="button" ${buttonDisabled}>
+        현재 10명 저장/업데이트
+      </button>
+    </div>
+
+    ${
+      players.length === 0
+        ? `<div class="empty-state">${escapeHtml(UI_COPY.emptyPreview)}</div>`
+        : `<div class="roster-list">${players.map(renderRosterPlayer).join('')}</div>`
+    }
   `;
 }
 

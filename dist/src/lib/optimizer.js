@@ -1,5 +1,6 @@
 import { ROLE_ORDER, getRoleConfig } from '../config/gameConfig.js';
 import { getPlayerId } from './playerIdentity.js';
+import { getPreferenceMeta, resolvePreferenceOrder, summarizePreferenceRanks } from './preferences.js';
 
 const SLOT_ORDER = ['tank', 'damage', 'damage', 'support', 'support'];
 
@@ -18,9 +19,14 @@ function buildCombinations(items, size, startIndex = 0, current = [], combinatio
   return combinations;
 }
 
+function buildPlayerLookup(players) {
+  return Object.fromEntries(players.map((player) => [getPlayerId(player), player]));
+}
+
 function createAssignment(player, role) {
   const tier = player.roles[role];
   const roleConfig = getRoleConfig(role);
+  const preferenceMeta = getPreferenceMeta(resolvePreferenceOrder(player), role);
 
   return {
     playerId: getPlayerId(player),
@@ -33,6 +39,10 @@ function createAssignment(player, role) {
     tierDescription: tier.description,
     score: tier.score,
     isUnranked: tier.isUnranked,
+    preferenceOrder: preferenceMeta.preferenceOrder,
+    preferenceRank: preferenceMeta.preferenceRank,
+    preferenceLabel: preferenceMeta.preferenceLabel,
+    preferenceFitKey: preferenceMeta.preferenceFitKey,
   };
 }
 
@@ -62,6 +72,10 @@ function buildTeamSlots(assignments, teamId, teamLabel) {
       score: assignment.score,
       isUnranked: assignment.isUnranked,
       sourceRow: assignment.sourceRow,
+      preferenceOrder: assignment.preferenceOrder,
+      preferenceRank: assignment.preferenceRank,
+      preferenceLabel: assignment.preferenceLabel,
+      preferenceFitKey: assignment.preferenceFitKey,
     };
   });
 }
@@ -113,6 +127,7 @@ function buildTeamSummary(rawAssignments, id, label) {
     totalScore,
     unrankedCount,
     roleTotals,
+    preferenceSummary: summarizePreferenceRanks(assignments),
   };
 }
 
@@ -127,7 +142,6 @@ function createCandidate(teamOneAssignments, teamTwoAssignments) {
   const teams = orderedAssignments.map((assignments, index) =>
     buildTeamSummary(assignments, index === 0 ? 'A' : 'B', `팀 ${index === 0 ? 'A' : 'B'}`),
   );
-
   const comparisonKey = teams.map((team) => buildTeamKey(team.assignments)).join('||');
   const roleScoreDifferences = ROLE_ORDER.reduce((differences, role) => {
     differences[role] = Math.abs(teams[0].roleTotals[role] - teams[1].roleTotals[role]);
@@ -148,7 +162,41 @@ function createCandidate(teamOneAssignments, teamTwoAssignments) {
     unrankedDifference,
     candidateKey: comparisonKey,
     comparisonKey,
+    preferenceSummary: summarizePreferenceRanks(teams.flatMap((team) => team.assignments)),
   };
+}
+
+function recreateCandidateTeam(team, playerLookup) {
+  const assignments = team.assignments.map((assignment) => {
+    const player = playerLookup[assignment.playerId];
+
+    if (!player) {
+      throw new Error(`후보를 다시 구성하는 중 플레이어를 찾지 못했습니다: ${assignment.playerId}`);
+    }
+
+    return createAssignment(player, assignment.assignedRole);
+  });
+
+  return buildTeamSummary(assignments, team.id, team.label);
+}
+
+export function hydrateCandidateWithPlayers(candidate, players) {
+  if (!candidate) {
+    return null;
+  }
+
+  const playerLookup = buildPlayerLookup(players);
+  const teams = candidate.teams.map((team) => recreateCandidateTeam(team, playerLookup));
+
+  return {
+    ...candidate,
+    teams,
+    preferenceSummary: summarizePreferenceRanks(teams.flatMap((team) => team.assignments)),
+  };
+}
+
+export function hydrateCandidatesWithPlayers(candidates, players) {
+  return candidates.map((candidate) => hydrateCandidateWithPlayers(candidate, players));
 }
 
 export function compareCandidateMetrics(left, right) {

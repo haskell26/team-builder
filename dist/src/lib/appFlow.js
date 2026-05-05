@@ -1,6 +1,165 @@
+import { EXPECTED_HEADERS, ROLE_ORDER } from '../config/gameConfig.js';
+import { createEditableCandidate, refreshEditableCandidate, clearSelectedSlot, selectSlot, swapSlots } from './editor.js';
+import { getTopCandidates, hydrateCandidatesWithPlayers } from './optimizer.js';
 import { parseClipboard } from './parseClipboard.js';
-import { clearSelectedSlot, createEditableCandidate, selectSlot, swapSlots } from './editor.js';
-import { getTopCandidates } from './optimizer.js';
+import { PREFERENCE_SOURCES, resolvePreferenceOrder, updatePreferenceOrder } from './preferences.js';
+
+function cloneTierSnapshot(tier) {
+  return {
+    key: tier.key,
+    label: tier.label,
+    description: tier.description,
+    score: tier.score,
+    isUnranked: tier.isUnranked,
+    rawValue: tier.rawValue,
+  };
+}
+
+function cloneRoleMap(roles) {
+  return ROLE_ORDER.reduce((nextRoles, role) => {
+    nextRoles[role] = cloneTierSnapshot(roles[role]);
+    return nextRoles;
+  }, {});
+}
+
+function buildSavedRecordLookup(savedPlayerRecords) {
+  return new Map(savedPlayerRecords.map((record) => [record.id, record]));
+}
+
+export function hydrateMatchPlayers(players, savedPlayerRecords = []) {
+  const savedRecordLookup = buildSavedRecordLookup(savedPlayerRecords);
+
+  return players.map((player) => {
+    const savedRecord = savedRecordLookup.get(player.id);
+
+    return {
+      ...player,
+      roles: cloneRoleMap(player.roles),
+      preferenceOrder: resolvePreferenceOrder(player, savedRecord?.preferenceOrder),
+      preferenceSource: savedRecord ? PREFERENCE_SOURCES.saved : PREFERENCE_SOURCES.default,
+    };
+  });
+}
+
+export function parseMatchPlayersFromClipboard(rawText, savedPlayerRecords = []) {
+  const parsed = parseClipboard(rawText);
+
+  if (parsed.errors.length > 0) {
+    return {
+      errors: parsed.errors,
+      players: [],
+      headers: parsed.headers,
+    };
+  }
+
+  return {
+    errors: [],
+    players: hydrateMatchPlayers(parsed.players, savedPlayerRecords),
+    headers: parsed.headers,
+  };
+}
+
+export function buildBalanceFromPlayers(players, options = {}) {
+  if (!players.length) {
+    return {
+      errors: [],
+      players: [],
+      candidates: [],
+      candidateCount: 0,
+      selectedCandidateId: null,
+      editor: null,
+    };
+  }
+
+  const { candidates, candidateCount } = getTopCandidates(players, options);
+  const selectedCandidateId = candidates[0]?.id ?? null;
+  const selectionState = getSelectedCandidateState(candidates, players, selectedCandidateId, candidateCount);
+
+  return {
+    errors: [],
+    players,
+    candidates,
+    candidateCount,
+    selectedCandidateId: selectionState.selectedCandidateId,
+    editor: selectionState.editor,
+  };
+}
+
+export function buildBalanceFromClipboard(rawText, options = {}) {
+  const { savedPlayerRecords = [], ...optimizerOptions } = options;
+  const parsed = parseMatchPlayersFromClipboard(rawText, savedPlayerRecords);
+
+  if (parsed.errors.length > 0) {
+    return {
+      errors: parsed.errors,
+      players: [],
+      candidates: [],
+      candidateCount: 0,
+      selectedCandidateId: null,
+      editor: null,
+    };
+  }
+
+  return buildBalanceFromPlayers(parsed.players, optimizerOptions);
+}
+
+export function refreshResultsFromPlayers(candidates, editor, players) {
+  return {
+    candidates: hydrateCandidatesWithPlayers(candidates, players),
+    editor: refreshEditableCandidate(editor, players),
+  };
+}
+
+export function updateMatchPlayerPreference(matchPlayers, playerId, rankIndex, nextRole) {
+  return matchPlayers.map((player) => {
+    if (player.id !== playerId) {
+      return player;
+    }
+
+    return {
+      ...player,
+      preferenceOrder: updatePreferenceOrder(
+        player.preferenceOrder,
+        rankIndex,
+        nextRole,
+        resolvePreferenceOrder(player),
+      ),
+      preferenceSource: PREFERENCE_SOURCES.manual,
+    };
+  });
+}
+
+export function createMatchPlayersFromSavedRecords(savedPlayerRecords) {
+  return savedPlayerRecords.map((record, index) => ({
+    id: record.id,
+    name: record.name,
+    sourceRow: index + 2,
+    roles: cloneRoleMap(record.roles),
+    preferenceOrder: resolvePreferenceOrder({ roles: record.roles }, record.preferenceOrder),
+    preferenceSource: PREFERENCE_SOURCES.saved,
+  }));
+}
+
+export function serializeMatchPlayers(players, { includeHeader = true } = {}) {
+  const lines = players.map((player) =>
+    [player.name, ...ROLE_ORDER.map((role) => player.roles[role].description)].join('\t'),
+  );
+
+  if (includeHeader) {
+    lines.unshift(EXPECTED_HEADERS.join('\t'));
+  }
+
+  return lines.join('\n');
+}
+
+export function loadSavedPlayersIntoMatch(savedPlayerRecords) {
+  const players = createMatchPlayersFromSavedRecords(savedPlayerRecords);
+
+  return {
+    players,
+    clipboardText: serializeMatchPlayers(players, { includeHeader: true }),
+  };
+}
 
 export function getSelectedCandidateState(candidates, players, selectedCandidateId, candidateCount) {
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? candidates[0] ?? null;
@@ -62,32 +221,4 @@ export function applySlotSelection(editor, slotId) {
   }
 
   return swapSlots(editor, editor.selectedSlotId, slotId);
-}
-
-export function buildBalanceFromClipboard(rawText, options = {}) {
-  const parsed = parseClipboard(rawText);
-
-  if (parsed.errors.length > 0) {
-    return {
-      errors: parsed.errors,
-      players: [],
-      candidates: [],
-      candidateCount: 0,
-      selectedCandidateId: null,
-      editor: null,
-    };
-  }
-
-  const { candidates, candidateCount } = getTopCandidates(parsed.players, options);
-  const selectedCandidateId = candidates[0]?.id ?? null;
-  const selectionState = getSelectedCandidateState(candidates, parsed.players, selectedCandidateId, candidateCount);
-
-  return {
-    errors: [],
-    players: parsed.players,
-    candidates,
-    candidateCount,
-    selectedCandidateId: selectionState.selectedCandidateId,
-    editor: selectionState.editor,
-  };
 }

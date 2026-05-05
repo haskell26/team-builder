@@ -38,6 +38,8 @@ test('createEditableCandidate builds fixed slot ids and role-based tier displays
   assert.equal(editor.teams[1].slots[4].id, 'B-support-2');
   assert.equal(getSlot(editor, 'A-tank-1')?.playerName, '빛의수호');
   assert.equal(getSlot(editor, 'A-tank-1')?.tierDescription, '실버');
+  assert.equal(getSlot(editor, 'A-tank-1')?.preferenceRank, 3);
+  assert.equal(getSlot(editor, 'A-tank-1')?.preferenceLabel, '3순위');
 });
 
 test('slot selection state can be applied and cleared without mutating team data', async () => {
@@ -73,8 +75,10 @@ test('cross-role swaps recompute displayed tier info from the destination slot r
 
   assert.equal(getSlot(swapped, 'A-tank-1')?.playerName, '하늘방패');
   assert.equal(getSlot(swapped, 'A-tank-1')?.tierDescription, '마스터');
+  assert.equal(getSlot(swapped, 'A-tank-1')?.preferenceRank, 1);
   assert.equal(getSlot(swapped, 'B-support-2')?.playerName, '빛의수호');
   assert.equal(getSlot(swapped, 'B-support-2')?.tierDescription, '마스터');
+  assert.equal(getSlot(swapped, 'B-support-2')?.preferenceRank, 1);
   assert.equal(swapped.selectedSlotId, null);
   assert.equal(swapped.lastAction, 'swapped');
 });

@@ -1,4 +1,5 @@
 export type Role = 'tank' | 'damage' | 'support';
+export type PreferenceSource = 'default' | 'saved' | 'manual';
 
 export interface PlayerInput {
   name: string;
@@ -24,6 +25,18 @@ export interface NormalizedPlayer {
   roles: Record<Role, TierSnapshot>;
 }
 
+export interface MatchPlayer extends NormalizedPlayer {
+  preferenceOrder: Role[];
+  preferenceSource: PreferenceSource;
+}
+
+export interface SavedPlayerRecord {
+  id: string;
+  name: string;
+  roles: Record<Role, TierSnapshot>;
+  preferenceOrder: Role[];
+}
+
 export interface TeamAssignment {
   playerId: string;
   playerName: string;
@@ -35,6 +48,10 @@ export interface TeamAssignment {
   tierDescription: string;
   score: number;
   isUnranked: boolean;
+  preferenceOrder: Role[];
+  preferenceRank: number | null;
+  preferenceLabel: string;
+  preferenceFitKey: string;
 }
 
 export interface TeamSlot {
@@ -53,6 +70,10 @@ export interface TeamSlot {
   tierDescription: string;
   score: number;
   isUnranked: boolean;
+  preferenceOrder: Role[];
+  preferenceRank: number | null;
+  preferenceLabel: string;
+  preferenceFitKey: string;
 }
 
 export interface TeamSummary {
@@ -63,6 +84,12 @@ export interface TeamSummary {
   totalScore: number;
   unrankedCount: number;
   roleTotals: Record<Role, number>;
+  preferenceSummary: {
+    rank1: number;
+    rank2: number;
+    rank3: number;
+    other: number;
+  };
 }
 
 export interface BalanceCandidate {
@@ -89,6 +116,6 @@ export interface EditableCandidate {
   rank: number;
   selectedSlotId: string | null;
   lastAction: 'idle' | 'selected' | 'swapped';
-  playerPool: Record<string, NormalizedPlayer>;
+  playerPool: Record<string, MatchPlayer>;
   teams: TeamSummary[];
 }

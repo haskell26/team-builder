@@ -69,6 +69,7 @@ test('optimizer preserves 1탱 2딜 2힐 composition and unique players across t
     assert.equal(assignments.length, 10);
     assert.equal(slots.length, 10);
     assert.equal(new Set(slots.map((slot) => slot.id)).size, 10);
+    assert.equal(candidate.preferenceSummary.rank1 + candidate.preferenceSummary.rank2 + candidate.preferenceSummary.rank3, 10);
 
     for (const team of candidate.teams) {
       assert.equal(team.assignments.filter((assignment) => assignment.assignedRole === 'tank').length, 1);
@@ -77,6 +78,8 @@ test('optimizer preserves 1탱 2딜 2힐 composition and unique players across t
       assert.equal(team.slots.filter((slot) => slot.role === 'tank').length, 1);
       assert.equal(team.slots.filter((slot) => slot.role === 'damage').length, 2);
       assert.equal(team.slots.filter((slot) => slot.role === 'support').length, 2);
+      assert.equal(team.preferenceSummary.rank1 + team.preferenceSummary.rank2 + team.preferenceSummary.rank3, 5);
+      assert.ok(team.slots.every((slot) => typeof slot.preferenceRank === 'number'));
     }
   }
 });

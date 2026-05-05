@@ -1,48 +1,55 @@
 {
-  "summary": "Implemented the round-3 frontend refactor: compact 6-candidate preview cards, score-hidden main UI, and a slot-based final swap editor with immediate cross-role/cross-team updates. Added pure editor helpers, preserved optimizer ranking rules, updated docs, and extended automated coverage.",
+  "summary": "Implemented the Team Builder round with canonical `matchPlayers` state, editable role preferences, localStorage-backed saved-player save/load, and preference-rank badges in both candidate previews and the swap editor while keeping the existing 6-candidate and two-click swap flow. `npm test` and `npm run build` pass; optional browser smoke could not be run here because no Chromium-family binary is installed.",
   "completed_work": [
-    "Refactored result rendering in `src/lib/render.js` and `src/styles.css` to show compact `팀 A / 팀 B` candidate previews, tier-color chips/cards, and a single editable final board without visible numeric score UI.",
-    "Added editable slot state with `src/lib/editor.js`, wired candidate reload and two-click swapping through `src/lib/appFlow.js` and `src/main.js`, and ensured cross-role swaps recompute displayed tier data from the destination slot role.",
-    "Extended candidate data in `src/lib/optimizer.js` with stable slot metadata while preserving ranking priority and existing optimization behavior.",
-    "Kept parser behavior intact in `src/lib/parseClipboard.js`, adding stable player ids for editor mapping while preserving optional-header support and Korean validation.",
-    "Updated browser smoke logic in `scripts/browserSmoke.mjs` for the new UI contract and added/updated tests in `test/editor.test.js`, `test/appFlow.test.js`, `test/optimizer.test.js`, `test/responsiveLayout.test.js`, and `test/browserSmoke.test.js`.",
-    "Rewrote `README.md` and `FINAL_OUTPUT.md` to document the compact preview workflow, score-hidden UI rule, swap editing behavior, and the non-blocking browser verification gap."
+    "Added `src/lib/preferences.js` for default preference derivation, unique-order normalization, rank metadata, and summary helpers.",
+    "Added `src/lib/playerStore.js` and refactored `src/main.js`/`src/lib/appFlow.js` so pasted players and saved-player loads both hydrate the canonical current-match state.",
+    "Extended optimizer/editor data so candidates and editable slots carry preference rank badges and those badges recalculate after candidate selection, preference edits, and slot swaps.",
+    "Reworked the UI in `src/lib/render.js` and `src/styles.css` to support Korean-first roster preference editing, saved-player selection/loading, compact candidate summaries, and hidden numeric-score surfaces.",
+    "Expanded the fake DOM harness plus automated tests to cover preference logic, player-store persistence, exact-10 saved-player loading, ranking preservation, swap recalculation, and the new UI workflow.",
+    "Updated `README.md` and `FINAL_OUTPUT.md` with setup, usage, verification steps, and the documented non-blocking browser/mobile smoke gap."
   ],
   "verification": [
     {
       "command": "npm test",
-      "result": "Passed. 6 test files succeeded, covering parsing, optimizer ranking/uniqueness, editor swap logic, main fake-DOM flow, responsive CSS contract, and browser smoke assertions."
+      "result": "Passed. Node test suite reported 8/8 passing test files."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Static bundle regenerated in `dist/`."
+      "result": "Passed. Rebuilt the static bundle into `dist/`."
     },
     {
-      "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v \"$name\" || true; done",
-      "result": "No Chromium-family browser binary was available in this sandbox, so `npm run test:browser` was not run."
+      "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do printf '%s: ' \"$name\"; command -v \"$name\" || true; done",
+      "result": "No Chromium-family browser binary was available in this sandbox, so `npm run test:browser` was not runnable here."
+    },
+    {
+      "command": "rg -n \"Final Edit|compact preview|TANK|DPS|SUP|역할 선호도, 저장 기능, 다른 게임 확장은 이번 범위에서 제외했습니다\" src README.md FINAL_OUTPUT.md",
+      "result": "No matches. The remaining checked UI/docs copy for those legacy strings was removed."
     }
   ],
   "known_gaps": [
-    "Real browser-engine smoke coverage remains unverified in this sandbox because no Chromium-family browser was installed. This is documented and treated as non-blocking for this round per spec.",
-    "Mobile/real-device validation is still not evidenced beyond automated layout and DOM-contract tests."
+    "`npm run test:browser` remains unverified in this sandbox because no Chromium/Chrome/Edge binary is installed.",
+    "Saved-player persistence is intentionally browser-local (`localStorage`) only; there is no export/import or cross-device sync in this iteration."
   ],
   "handoff_notes": [
-    "Candidate card clicks now always load a fresh editable copy of that candidate and clear prior swap state; QA should verify that this reset behavior is the intended UX.",
-    "The main UI intentionally hides personal scores, team totals, and numeric score-difference labels; ranking metrics still exist internally for tests and ordering.",
-    "`dist/` was rebuilt after the source changes.",
-    "`.harness/spec.md` and `.harness/plan.json` showed pre-existing worktree modifications and were left untouched."
+    "`dist/` is already rebuilt from the current `src/` state and is ready for static hosting review.",
+    "QA should exercise the saved-player flow by checking that `선택한 10명 불러오기` stays disabled until exactly 10 saved players are checked, then confirm the textarea is rewritten with the canonical header TSV.",
+    "The pre-existing dirty `.harness/spec.md` and `.harness/plan.json` files were left untouched."
   ],
   "files_of_interest": [
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/editor.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/appFlow.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/render.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/optimizer.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/main.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/styles.css",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/editor.test.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
-    "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"
+    "src/main.js",
+    "src/lib/appFlow.js",
+    "src/lib/optimizer.js",
+    "src/lib/editor.js",
+    "src/lib/render.js",
+    "src/lib/preferences.js",
+    "src/lib/playerStore.js",
+    "src/styles.css",
+    "testing/fakeDom.js",
+    "test/appFlow.test.js",
+    "test/playerStore.test.js",
+    "test/preferences.test.js",
+    "README.md",
+    "FINAL_OUTPUT.md"
   ],
   "ready_for_qa": true
 }
