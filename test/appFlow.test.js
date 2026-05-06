@@ -51,6 +51,10 @@ async function createSavedPlayerPayload() {
   return storage.getItem(PLAYER_STORE_KEY);
 }
 
+function expandSavedPanel(document) {
+  document.querySelector('#saved-panel-toggle-button').click();
+}
+
 test('refreshResultsFromPlayers recalculates suggested candidates after extreme preference edits', async () => {
   const sampleFixture = await loadSampleFixture();
   const parsed = parseMatchPlayersFromClipboard(sampleFixture);
@@ -103,7 +107,9 @@ test('main entrypoint edits point preferences, saves the current roster, renders
   assert.ok(balanceButton);
   assert.ok(clearButton);
   assert.match(feedbackPanel.innerHTML, /표를 붙여넣거나 저장된 플레이어 10명을 불러오면/);
-  assert.match(savedPlayerPanel.innerHTML, /아직 저장된 플레이어가 없습니다/);
+  assert.match(savedPlayerPanel.innerHTML, /목록 펼치기/);
+  assert.match(savedPlayerPanel.innerHTML, /보관함이 접혀 있습니다/);
+  assert.doesNotMatch(savedPlayerPanel.innerHTML, /saved-player-list-scroll/);
   assert.match(previewPanel.innerHTML, /현재 매치 0명/);
   assert.match(resultPanel.innerHTML, /최종 편집 영역/);
 
@@ -123,10 +129,18 @@ test('main entrypoint edits point preferences, saves the current roster, renders
   document.querySelector('#save-current-button').click();
 
   assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 10명/);
-  assert.match(savedPlayerPanel.innerHTML, /탱 3점 · 딜 1점 · 힐 2점/);
-  assert.match(savedPlayerPanel.innerHTML, /삭제/);
+  assert.match(savedPlayerPanel.innerHTML, /선택 0 \/ 10/);
+  assert.match(savedPlayerPanel.innerHTML, /보관함이 접혀 있습니다/);
+  assert.doesNotMatch(savedPlayerPanel.innerHTML, /saved-player-list-scroll/);
   assert.match(localStorage.getItem(PLAYER_STORE_KEY), /"하늘방패"/);
   assert.match(localStorage.getItem(PLAYER_STORE_KEY), /"preferencePoints"/);
+
+  expandSavedPanel(document);
+
+  assert.match(savedPlayerPanel.innerHTML, /목록 접기/);
+  assert.match(savedPlayerPanel.innerHTML, /saved-player-list-scroll/);
+  assert.match(savedPlayerPanel.innerHTML, /탱 마스터 · 딜 실버 · 힐 골드 · 선호 3 \/ 1 \/ 2/);
+  assert.match(savedPlayerPanel.innerHTML, /삭제/);
 
   balanceButton.click();
 
@@ -169,6 +183,7 @@ test('main entrypoint edits point preferences, saves the current roster, renders
 });
 
 test('saved-player selection is gated to exactly 10 and loading rewrites the textarea with canonical TSV', async (context) => {
+  const sampleFixture = await loadSampleFixture();
   const storedPayload = await createSavedPlayerPayload();
   const { document, cleanup } = await loadMainIntoFakeDom({
     storageEntries: {
@@ -186,19 +201,27 @@ test('saved-player selection is gated to exactly 10 and loading rewrites the tex
 
   assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 10명/);
   assert.match(savedPlayerPanel.innerHTML, /선택 0 \/ 10/);
+  assert.match(savedPlayerPanel.innerHTML, /목록 펼치기/);
+  assert.doesNotMatch(savedPlayerPanel.innerHTML, /saved-player-row-body-0/);
   assert.equal(document.querySelector('#load-selected-button').disabled, true);
 
-  const firstCheckbox = document.querySelector('#saved-player-checkbox-0');
-  firstCheckbox.checked = true;
-  firstCheckbox.dispatchEvent({ type: 'change' });
+  textarea.value = sampleFixture;
+  textarea.dispatchEvent({ type: 'input' });
+  balanceButton.click();
+  assert.match(resultPanel.innerHTML, /추천 후보 6개/);
+
+  expandSavedPanel(document);
+
+  assert.match(savedPlayerPanel.innerHTML, /saved-player-list-scroll/);
+  assert.match(savedPlayerPanel.innerHTML, /saved-player-row-body-0/);
+
+  document.querySelector('#saved-player-row-body-0').click();
 
   assert.match(savedPlayerPanel.innerHTML, /선택 1 \/ 10/);
   assert.equal(document.querySelector('#load-selected-button').disabled, true);
 
   for (let index = 1; index < 10; index += 1) {
-    const checkbox = document.querySelector(`#saved-player-checkbox-${index}`);
-    checkbox.checked = true;
-    checkbox.dispatchEvent({ type: 'change' });
+    document.querySelector(`#saved-player-row-body-${index}`).click();
   }
 
   assert.match(savedPlayerPanel.innerHTML, /선택 10 \/ 10/);
@@ -212,14 +235,9 @@ test('saved-player selection is gated to exactly 10 and loading rewrites the tex
   assert.match(previewPanel.innerHTML, /하늘방패/);
   assert.match(previewPanel.innerHTML, /저장 불러옴/);
   assert.match(resultPanel.innerHTML, /최종 편집 영역/);
-
-  balanceButton.click();
-
-  assert.match(resultPanel.innerHTML, /추천 후보 6개/);
-  assert.match(resultPanel.innerHTML, /preference-badge/);
 });
 
-test('saved-player delete and clear-all actions keep selection counts and gating in sync', async (context) => {
+test('saved-player rows toggle from the full hit area and delete stays isolated from selection state', async (context) => {
   const storedPayload = await createSavedPlayerPayload();
   const { document, cleanup } = await loadMainIntoFakeDom({
     storageEntries: {
@@ -229,27 +247,30 @@ test('saved-player delete and clear-all actions keep selection counts and gating
   context.after(cleanup);
 
   const savedPlayerPanel = document.querySelector('#saved-player-panel');
+  expandSavedPanel(document);
 
-  for (let index = 0; index < 10; index += 1) {
-    const checkbox = document.querySelector(`#saved-player-checkbox-${index}`);
-    checkbox.checked = true;
-    checkbox.dispatchEvent({ type: 'change' });
-  }
+  assert.match(savedPlayerPanel.innerHTML, /id="saved-player-row-body-0"[\s\S]*class="saved-player-row-body"/);
+  assert.match(savedPlayerPanel.innerHTML, /id="saved-player-delete-0"/);
 
-  assert.match(savedPlayerPanel.innerHTML, /선택 10 \/ 10/);
-  assert.equal(document.querySelector('#load-selected-button').disabled, false);
+  document.querySelector('#saved-player-row-body-0').click();
 
-  document.querySelector('#saved-player-delete-0').click();
+  assert.match(savedPlayerPanel.innerHTML, /선택 1 \/ 10/);
+  assert.equal(document.querySelector('#load-selected-button').disabled, true);
+
+  document.querySelector('#saved-player-delete-1').click();
 
   assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 9명/);
-  assert.match(savedPlayerPanel.innerHTML, /선택 9 \/ 10/);
+  assert.match(savedPlayerPanel.innerHTML, /선택 1 \/ 10/);
   assert.equal(document.querySelector('#load-selected-button').disabled, true);
-  assert.doesNotMatch(savedPlayerPanel.innerHTML, /선택 10 \/ 10/);
+
+  document.querySelector('#saved-player-row-body-0').click();
+
+  assert.match(savedPlayerPanel.innerHTML, /선택 0 \/ 10/);
 
   document.querySelector('#clear-saved-button').click();
 
   assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 0명/);
-  assert.match(savedPlayerPanel.innerHTML, /아직 저장된 플레이어가 없습니다/);
+  assert.match(savedPlayerPanel.innerHTML, /보관함이 접혀 있습니다|아직 저장된 플레이어가 없습니다/);
 });
 
 test('main entrypoint blocks invalid clipboard data and keeps result empty', async (context) => {

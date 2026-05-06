@@ -1,43 +1,37 @@
 {
-  "summary": "Shipped the round-1 builder pass for Team Builder by migrating role preference handling to the required 6-point distribution model, simplifying saved-player management, preserving the 6-candidate/team-swap flow, refreshing docs, and regenerating the static bundle.",
+  "summary": "Built the round-4 saved-player UX pass: the loader now lives in a right sidebar, starts collapsed, expands via a Korean toggle, renders saved players as compact one-line full-row selectors, and keeps the existing save/load, candidate, preference, and swap flows intact without reintroducing numeric score UI.",
   "completed_work": [
-    "Replaced the old ranked-role preference model with `preferencePoints` across runtime state, candidate/editor metadata, and saved-player persistence, with default `2/2/2` handling and legacy `preferenceOrder -> 3/2/1` migration.",
-    "Updated the roster UI to Korean point steppers for `탱커 / 딜러 / 힐러`, guaranteed integer totals of 6 at all times, and refreshed candidate/editor badges to show assigned-role preference points instead of rank labels.",
-    "Simplified the saved-player library into a name-first list with exact-10 load gating, per-row delete, clear-all delete, selection reconciliation, and canonical TSV reload/reset behavior.",
-    "Refreshed automated coverage for point normalization, legacy storage migration, save/load/delete flows, swap recalculation, responsive contracts, and fake DOM rerender cleanup.",
-    "Updated `README.md` and `FINAL_OUTPUT.md` to match the shipped 6-point workflow and documented the non-blocking browser/mobile smoke gap for this iteration.",
-    "Regenerated `dist/` from the current source with the updated frontend behavior."
+    "Refactored the app shell in `src/lib/render.js` so the top area is a two-column workspace with the saved-player loader separated into a sidebar and the preview/result panels left in the main flow below.",
+    "Added `savedPanelExpanded` state and wiring in `src/main.js`, defaulting to collapsed and keeping expand/collapse independent from roster, candidate, and editor state.",
+    "Rebuilt the saved-player panel markup and styling into a compact row-based list with row-wide selection hit areas, isolated delete buttons, capped-height scrolling, and Korean collapsed/expanded helper copy.",
+    "Kept exact-10 load gating, saved-player count sync, canonical TSV reload, and result reset behavior intact while preserving the existing optimizer ordering and hidden-score UI.",
+    "Extended regression coverage in `test/appFlow.test.js` and `test/responsiveLayout.test.js` for collapsed-by-default behavior, row click selection, delete isolation, load reset behavior, sidebar layout classes, and scroll/compact-row styling hooks.",
+    "Updated `README.md` and `FINAL_OUTPUT.md` to describe the sidebar workflow, default collapsed state, one-line saved-player rows, verification commands run, and the non-blocking browser/mobile verification gap for this round."
   ],
   "verification": [
     {
       "command": "npm test",
-      "result": "Passed. All 8 test files succeeded."
-    },
-    {
-      "command": "node --test test/editor.test.js",
-      "result": "Passed while validating the updated point-based swap/editor expectations."
+      "result": "Passed all 8 test files, including the updated app-flow and responsive layout coverage."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Static bundle regenerated in `dist/`."
+      "result": "Succeeded and regenerated the static `dist/` bundle."
     }
   ],
   "known_gaps": [
-    "`npm run test:browser` was not executed in this round, so real browser/mobile smoke evidence is still absent. The current spec marks that gap as non-blocking."
+    "`npm run test:browser` was not run in this environment, so real browser/mobile smoke evidence is still absent. The current round spec treats that as non-blocking."
   ],
   "handoff_notes": [
-    "Saved-player persistence now reads the new `team-builder.saved-players.v2` payload first and falls back to legacy `v1` data when present.",
-    "Candidate ordering still follows the required balance rules only; preference points are display/edit metadata and do not act as a ranking key.",
-    "`dist/` reflects the latest source changes from the successful build run."
+    "`dist/src/*` was refreshed by the verified build and now includes the sidebar/collapse changes.",
+    "The worktree already showed unrelated modifications in `.harness/spec.md` and `.harness/plan.json`; they were left as-is."
   ],
   "files_of_interest": [
-    "src/lib/preferences.js",
-    "src/lib/playerStore.js",
-    "src/lib/render.js",
     "src/main.js",
+    "src/lib/render.js",
+    "src/styles.css",
+    "src/constants/copy.js",
     "test/appFlow.test.js",
-    "test/playerStore.test.js",
-    "testing/fakeDom.js",
+    "test/responsiveLayout.test.js",
     "README.md",
     "FINAL_OUTPUT.md"
   ],

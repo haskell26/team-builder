@@ -10,6 +10,7 @@ test('responsive layout keeps preview cards, editor boards, and overflow contain
   const styles = await loadStyles();
 
   assert.match(styles, /body\s*\{[\s\S]*min-width:\s*320px;/);
+  assert.match(styles, /\.workspace-stack,\s*\.workspace-sidebar\s*\{[\s\S]*display:\s*grid;[\s\S]*gap:\s*20px;/);
   assert.match(styles, /\.button-row\s*\{[\s\S]*flex-wrap:\s*wrap;/);
   assert.match(styles, /\.role-tier-row\s*\{[\s\S]*flex-wrap:\s*wrap;/);
   assert.match(styles, /\.table-frame\s*\{[\s\S]*overflow-x:\s*auto;/);
@@ -27,6 +28,7 @@ test('layout text blocks and slot cards can shrink and wrap instead of forcing p
 
   assert.match(styles, /\.page-shell,[\s\S]*\.editor-slot-button\s*\{[\s\S]*min-width:\s*0;/);
   assert.match(styles, /\.hero-title-row h1,[\s\S]*\.editor-guide\s*\{[\s\S]*overflow-wrap:\s*anywhere;/);
+  assert.match(styles, /\.saved-player-summary\s*\{[\s\S]*white-space:\s*nowrap;[\s\S]*overflow:\s*hidden;[\s\S]*text-overflow:\s*ellipsis;/);
   assert.match(styles, /\.table-frame\s*\{[\s\S]*max-width:\s*100%;/);
   assert.match(styles, /\.sample-pre\s*\{[\s\S]*max-width:\s*100%;/);
 });
@@ -45,12 +47,24 @@ test('tier color contract includes all eight required role-independent classes',
   assert.match(styles, /\.tier-grandmaster\s*\{/);
 });
 
-test('preference and saved-player UI styles are present for the new workflow', async () => {
+test('saved-player sidebar styles cover the collapsed panel, scrollable list, and compact row hit area', async () => {
   const styles = await loadStyles();
 
-  assert.match(styles, /\.saved-player-list(?:\s*,|\s*\{)/);
-  assert.match(styles, /\.saved-player-row\s*\{/);
+  assert.match(styles, /\.saved-panel-shell\s*\{/);
+  assert.match(styles, /\.saved-panel-header,\s*\.saved-toolbar,\s*\.preview-toolbar\s*\{/);
+  assert.match(styles, /\.saved-panel-summary\s*\{/);
+  assert.match(styles, /\.saved-player-list-scroll\s*\{[\s\S]*max-height:\s*420px;[\s\S]*overflow-y:\s*auto;/);
+  assert.match(styles, /\.saved-player-row\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*auto;/);
+  assert.match(styles, /\.saved-player-row-body\s*\{[\s\S]*width:\s*100%;[\s\S]*display:\s*flex;[\s\S]*align-items:\s*center;/);
+  assert.match(styles, /\.saved-player-row-selected\s*\{/);
   assert.match(styles, /\.saved-toolbar-actions\s*\{/);
+  assert.doesNotMatch(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.saved-player-row\s*\{[\s\S]*flex-direction:\s*column;/);
+  assert.doesNotMatch(styles, /@media \(max-width:\s*960px\)\s*\{[\s\S]*\.saved-player-row-body\s*\{[\s\S]*grid-template-columns:\s*1fr;/);
+});
+
+test('preference and roster editing styles remain present after the sidebar refactor', async () => {
+  const styles = await loadStyles();
+
   assert.match(styles, /\.roster-list\s*\{/);
   assert.match(styles, /\.preference-stepper\s*\{/);
   assert.match(styles, /\.stepper-button\s*\{/);

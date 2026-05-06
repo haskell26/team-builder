@@ -30,6 +30,7 @@ const state = {
   storageAvailable: true,
   storageWarning: '',
   savedPanelMessage: '',
+  savedPanelExpanded: false,
   candidates: [],
   candidateCount: 0,
   selectedCandidateId: null,
@@ -87,8 +88,13 @@ function updateFeedbackPanel() {
 }
 
 function bindSavedPlayerControls() {
+  const savedPanelToggleButton = document.querySelector('#saved-panel-toggle-button');
   const loadSelectedButton = document.querySelector('#load-selected-button');
   const clearSavedButton = document.querySelector('#clear-saved-button');
+
+  if (savedPanelToggleButton) {
+    savedPanelToggleButton.addEventListener('click', handleSavedPanelToggle);
+  }
 
   if (loadSelectedButton) {
     loadSelectedButton.disabled = !canLoadSavedSelection() || !state.storageAvailable;
@@ -101,13 +107,22 @@ function bindSavedPlayerControls() {
   }
 
   state.savedPlayers.forEach((record, index) => {
-    const checkbox = document.querySelector(`#saved-player-checkbox-${index}`);
+    const rowBody = document.querySelector(`#saved-player-row-body-${index}`);
     const deleteButton = document.querySelector(`#saved-player-delete-${index}`);
 
-    if (checkbox) {
-      checkbox.checked = state.savedPlayerSelectionIds.has(record.id);
-      checkbox.addEventListener('change', (event) => {
-        handleSavedPlayerToggle(record.id, Boolean(event.currentTarget.checked));
+    if (rowBody) {
+      const toggleSelection = () => {
+        handleSavedPlayerToggle(record.id, !state.savedPlayerSelectionIds.has(record.id));
+      };
+
+      rowBody.addEventListener('click', toggleSelection);
+      rowBody.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
+          return;
+        }
+
+        event.preventDefault();
+        toggleSelection();
       });
     }
 
@@ -127,6 +142,7 @@ function updateSavedPlayerPanel() {
     storageAvailable: state.storageAvailable,
     message: state.savedPanelMessage,
     warning: state.storageWarning,
+    expanded: state.savedPanelExpanded,
   });
   bindSavedPlayerControls();
 }
@@ -294,6 +310,11 @@ function handleSaveCurrentRoster() {
     : '';
   reconcileSavedSelections();
   updatePanels();
+}
+
+function handleSavedPanelToggle() {
+  state.savedPanelExpanded = !state.savedPanelExpanded;
+  updateSavedPlayerPanel();
 }
 
 function handleSavedPlayerToggle(playerId, checked) {

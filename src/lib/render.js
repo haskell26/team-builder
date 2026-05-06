@@ -1,6 +1,6 @@
 import { UI_COPY, SAMPLE_FORMAT_LINES } from '../constants/copy.js';
 import { ROLE_ORDER, getRoleConfig, getTierGuideRows } from '../config/gameConfig.js';
-import { PREFERENCE_POINT_TOTAL, formatPreferencePointsSummary } from './preferences.js';
+import { PREFERENCE_POINT_TOTAL } from './preferences.js';
 
 function escapeHtml(value) {
   return `${value}`
@@ -71,6 +71,10 @@ function renderSavedRoleLine(roles) {
   return ROLE_ORDER.map((role) => `${getRoleConfig(role).shortLabel} ${roles[role].description}`).join(' · ');
 }
 
+function renderSavedPreferenceLine(preferencePoints) {
+  return `선호 ${ROLE_ORDER.map((role) => preferencePoints[role]).join(' / ')}`;
+}
+
 function renderPreferenceStepper(playerIndex, role, points) {
   const roleConfig = getRoleConfig(role);
 
@@ -127,22 +131,30 @@ function renderRosterPlayer(player, index) {
 }
 
 function renderSavedPlayer(record, index, selectedIds) {
+  const isSelected = selectedIds.has(record.id);
+
   return `
-    <article class="saved-player-row">
-      <div class="saved-player-main">
-        <label class="saved-player-pick" for="saved-player-checkbox-${index}">
-          <input
-            id="saved-player-checkbox-${index}"
-            class="saved-player-checkbox"
-            type="checkbox"
-            ${selectedIds.has(record.id) ? 'checked' : ''}
-          />
-          <span class="saved-player-name">${escapeHtml(record.name)}</span>
-        </label>
-        <p class="saved-player-secondary">${escapeHtml(renderSavedRoleLine(record.roles))}</p>
-        <p class="saved-player-secondary">${escapeHtml(formatPreferencePointsSummary(record.preferencePoints))}</p>
+    <article class="saved-player-row ${isSelected ? 'saved-player-row-selected' : ''}">
+      <div
+        id="saved-player-row-body-${index}"
+        class="saved-player-row-body"
+        role="button"
+        tabindex="0"
+        aria-pressed="${isSelected ? 'true' : 'false'}"
+        aria-label="${escapeHtml(record.name)} ${isSelected ? '선택 해제' : '선택'}"
+      >
+        <span class="saved-player-state">${isSelected ? '선택됨' : '대기'}</span>
+        <strong class="saved-player-name">${escapeHtml(record.name)}</strong>
+        <span class="saved-player-summary">${escapeHtml(
+          `${renderSavedRoleLine(record.roles)} · ${renderSavedPreferenceLine(record.preferencePoints)}`,
+        )}</span>
       </div>
-      <button id="saved-player-delete-${index}" class="ghost-button danger-button saved-player-delete" type="button">
+      <button
+        id="saved-player-delete-${index}"
+        class="ghost-button danger-button saved-player-delete"
+        type="button"
+        aria-label="${escapeHtml(record.name)} 삭제"
+      >
         삭제
       </button>
     </article>
@@ -278,73 +290,79 @@ export function renderShell() {
         </div>
       </header>
 
-      <main class="main-grid">
-        <section class="panel-card input-panel">
-          <div class="section-heading">
-            <h2>${escapeHtml(UI_COPY.inputTitle)}</h2>
-            <p>${escapeHtml(UI_COPY.inputHint)}</p>
+      <main class="workspace-stack">
+        <section class="main-grid workspace-grid">
+          <div class="workspace-main">
+            <section class="panel-card input-panel">
+              <div class="section-heading">
+                <h2>${escapeHtml(UI_COPY.inputTitle)}</h2>
+                <p>${escapeHtml(UI_COPY.inputHint)}</p>
+              </div>
+
+              <label class="textarea-label" for="clipboard-input">엑셀에서 복사한 표</label>
+              <textarea
+                id="clipboard-input"
+                class="clipboard-textarea"
+                spellcheck="false"
+                placeholder="유저 이름\t탱커 티어\t딜러 티어\t힐러 티어\n하늘방패\t마스터\t실버\t골드"
+              ></textarea>
+
+              <div class="button-row">
+                <button id="sample-button" class="ghost-button" type="button">샘플 데이터 넣기</button>
+                <button id="clear-button" class="ghost-button" type="button">입력 비우기</button>
+                <button id="balance-button" class="primary-button" type="button">팀 나누기</button>
+              </div>
+
+              <div id="feedback-panel"></div>
+            </section>
           </div>
 
-          <label class="textarea-label" for="clipboard-input">엑셀에서 복사한 표</label>
-          <textarea
-            id="clipboard-input"
-            class="clipboard-textarea"
-            spellcheck="false"
-            placeholder="유저 이름\t탱커 티어\t딜러 티어\t힐러 티어\n하늘방패\t마스터\t실버\t골드"
-          ></textarea>
+          <aside class="workspace-sidebar">
+            <section class="panel-card saved-panel-card">
+              <div class="section-heading">
+                <h2>${escapeHtml(UI_COPY.savedTitle)}</h2>
+                <p>${escapeHtml(UI_COPY.savedHint)}</p>
+              </div>
+              <div id="saved-player-panel"></div>
+            </section>
 
-          <div class="button-row">
-            <button id="sample-button" class="ghost-button" type="button">샘플 데이터 넣기</button>
-            <button id="clear-button" class="ghost-button" type="button">입력 비우기</button>
-            <button id="balance-button" class="primary-button" type="button">팀 나누기</button>
-          </div>
+            <section class="panel-card side-panel">
+              <div class="section-heading">
+                <h2>${escapeHtml(UI_COPY.sampleTitle)}</h2>
+                <p>헤더 행은 있어도 되고 없어도 됩니다. 붙여넣을 때는 탭 구분만 유지해 주세요.</p>
+              </div>
+              <pre class="sample-pre">${escapeHtml(SAMPLE_FORMAT_LINES.join('\n'))}</pre>
 
-          <div id="feedback-panel"></div>
+              <div class="section-heading compact-heading">
+                <h2>티어 색상 가이드</h2>
+                <p>${escapeHtml(UI_COPY.tierGuideHint)}</p>
+              </div>
+              <ul class="guide-list">${tierGuide}</ul>
+
+              <div class="section-heading compact-heading">
+                <h2>${escapeHtml(UI_COPY.footerTitle)}</h2>
+              </div>
+              <ul class="assumption-list">${footerList}</ul>
+            </section>
+          </aside>
         </section>
 
-        <section class="panel-card side-panel">
+        <section class="panel-card">
           <div class="section-heading">
-            <h2>${escapeHtml(UI_COPY.sampleTitle)}</h2>
-            <p>헤더 행은 있어도 되고 없어도 됩니다. 붙여넣을 때는 탭 구분만 유지해 주세요.</p>
+            <h2>${escapeHtml(UI_COPY.previewTitle)}</h2>
+            <p>${escapeHtml(UI_COPY.previewHint)}</p>
           </div>
-          <pre class="sample-pre">${escapeHtml(SAMPLE_FORMAT_LINES.join('\n'))}</pre>
+          <div id="preview-panel"></div>
+        </section>
 
-          <div class="section-heading compact-heading">
-            <h2>티어 색상 가이드</h2>
-            <p>${escapeHtml(UI_COPY.tierGuideHint)}</p>
+        <section class="panel-card" id="result-panel">
+          <div class="section-heading">
+            <h2>${escapeHtml(UI_COPY.resultTitle)}</h2>
+            <p>${escapeHtml(UI_COPY.resultHint)}</p>
           </div>
-          <ul class="guide-list">${tierGuide}</ul>
-
-          <div class="section-heading compact-heading">
-            <h2>${escapeHtml(UI_COPY.footerTitle)}</h2>
-          </div>
-          <ul class="assumption-list">${footerList}</ul>
+          <div id="result-content"></div>
         </section>
       </main>
-
-      <section class="panel-card">
-        <div class="section-heading">
-          <h2>${escapeHtml(UI_COPY.savedTitle)}</h2>
-          <p>${escapeHtml(UI_COPY.savedHint)}</p>
-        </div>
-        <div id="saved-player-panel"></div>
-      </section>
-
-      <section class="panel-card">
-        <div class="section-heading">
-          <h2>${escapeHtml(UI_COPY.previewTitle)}</h2>
-          <p>${escapeHtml(UI_COPY.previewHint)}</p>
-        </div>
-        <div id="preview-panel"></div>
-      </section>
-
-      <section class="panel-card" id="result-panel">
-        <div class="section-heading">
-          <h2>${escapeHtml(UI_COPY.resultTitle)}</h2>
-          <p>${escapeHtml(UI_COPY.resultHint)}</p>
-        </div>
-        <div id="result-content"></div>
-      </section>
     </div>
   `;
 }
@@ -376,41 +394,76 @@ export function renderFeedback(errors, hasText, hasValidPlayers, hasResult) {
   return '<p class="feedback-neutral">입력 대기 중입니다.</p>';
 }
 
-export function renderSavedPlayers(records, { selectedIds, canLoadSelected, storageAvailable, message, warning }) {
+function renderSavedCollapsedSummary(records, selectedCount) {
+  if (records.length === 0) {
+    return UI_COPY.savedCollapsedEmpty;
+  }
+
+  return `저장 ${records.length}명 · 선택 ${selectedCount} / 10 · ${UI_COPY.savedCollapsedSelection}`;
+}
+
+export function renderSavedPlayers(
+  records,
+  { selectedIds, canLoadSelected, storageAvailable, message, warning, expanded },
+) {
   const selectedCount = selectedIds.size;
   const saveSupportHint = storageAvailable
-    ? '체크한 플레이어는 정확히 10명일 때만 현재 매치로 불러올 수 있습니다.'
+    ? '선택한 플레이어는 정확히 10명일 때만 현재 매치로 불러올 수 있습니다.'
     : '이 환경에서는 브라우저 저장소를 사용할 수 없어 저장/불러오기가 비활성화됩니다.';
+  const toggleLabel = expanded ? UI_COPY.savedCollapseLabel : UI_COPY.savedExpandLabel;
+  const collapsedSummary = renderSavedCollapsedSummary(records, selectedCount);
 
   return `
-    <div class="saved-toolbar">
-      <div>
-        <strong class="saved-toolbar-title">저장된 플레이어 ${records.length}명</strong>
-        <p class="saved-toolbar-meta">선택 ${selectedCount} / 10</p>
-      </div>
-      <div class="saved-toolbar-actions">
-        <button id="clear-saved-button" class="ghost-button danger-button" type="button" ${
-          records.length > 0 && storageAvailable ? '' : 'disabled'
-        }>
-          전체 삭제
+    <div class="saved-panel-shell ${expanded ? 'saved-panel-shell-expanded' : 'saved-panel-shell-collapsed'}">
+      <div class="saved-panel-header">
+        <div>
+          <strong class="saved-toolbar-title">저장된 플레이어 ${records.length}명</strong>
+          <p class="saved-toolbar-meta">선택 ${selectedCount} / 10</p>
+        </div>
+        <button
+          id="saved-panel-toggle-button"
+          class="ghost-button saved-panel-toggle"
+          type="button"
+          aria-expanded="${expanded ? 'true' : 'false'}"
+        >
+          ${escapeHtml(toggleLabel)}
         </button>
-        <button id="load-selected-button" class="primary-button" type="button" ${canLoadSelected ? '' : 'disabled'}>
-          선택한 10명 불러오기
-        </button>
       </div>
+
+      <div class="saved-toolbar">
+        <p class="saved-toolbar-hint">${escapeHtml(saveSupportHint)}</p>
+        <div class="saved-toolbar-actions">
+          <button id="clear-saved-button" class="ghost-button danger-button" type="button" ${
+            records.length > 0 && storageAvailable ? '' : 'disabled'
+          }>
+            전체 삭제
+          </button>
+          <button
+            id="load-selected-button"
+            class="primary-button"
+            type="button"
+            ${canLoadSelected && storageAvailable ? '' : 'disabled'}
+          >
+            선택한 10명 불러오기
+          </button>
+        </div>
+      </div>
+
+      ${renderSavedPanelMessage(message, 'success')}
+      ${renderSavedPanelMessage(warning, storageAvailable ? 'warning' : 'error')}
+
+      <p class="saved-panel-summary">${escapeHtml(expanded ? UI_COPY.savedExpandedHint : collapsedSummary)}</p>
+
+      ${
+        !expanded
+          ? ''
+          : records.length === 0
+            ? `<div class="empty-state">${escapeHtml(UI_COPY.emptySaved)}</div>`
+            : `<div class="saved-player-list-scroll"><div class="saved-player-list">${records
+                .map((record, index) => renderSavedPlayer(record, index, selectedIds))
+                .join('')}</div></div>`
+      }
     </div>
-
-    <p class="saved-toolbar-hint">${escapeHtml(saveSupportHint)}</p>
-    ${renderSavedPanelMessage(message, 'success')}
-    ${renderSavedPanelMessage(warning, storageAvailable ? 'warning' : 'error')}
-
-    ${
-      records.length === 0
-        ? `<div class="empty-state">${escapeHtml(UI_COPY.emptySaved)}</div>`
-        : `<div class="saved-player-list">${records
-            .map((record, index) => renderSavedPlayer(record, index, selectedIds))
-            .join('')}</div>`
-    }
   `;
 }
 

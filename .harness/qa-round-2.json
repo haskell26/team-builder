@@ -1,24 +1,23 @@
 {
   "verdict": "pass",
-  "summary": "No blocking findings discovered in the inspected workspace. The shipped round meets the iteration scope I verified: tests and static build pass, 6 compact candidates still render with correct `1탱 2딜 2힐` structure and hidden balance numbers, preference-point edits now recompute results and can change surfaced fully tied candidates, and saved-player save/load/delete flows plus docs are aligned with the current non-blocking browser-smoke policy.",
+  "summary": "No blocking issues were confirmed in the inspected workspace. The round-4 sidebar/list UX is implemented, core round-3 behavior still holds, automated checks pass, and the only remaining gap I saw is the still-unrun real-browser smoke, which the spec explicitly treats as non-blocking and the docs describe accurately.",
   "score": 96,
   "strengths": [
-    "`npm test` passed across all 8 test files, and `npm run build` regenerated a static `dist/` bundle with the expected entrypoint and assets.",
-    "Independent runtime checks confirmed 6 visible candidates, 113,400 total valid assignments for the sample fixture, no duplicate player assignment inside a candidate, and ordering that still respects total score difference, role-score-difference sum, tank difference, then unranked difference.",
-    "`src/lib/optimizer.js`, `src/lib/appFlow.js`, and the regression tests now show preference points influencing surfaced candidates only inside fully tied balance buckets, while preference edits trigger a full candidate/editor recompute.",
-    "Saved-player workflows are implemented and verified: v1-to-v2 migration, exact-10 load gating, individual delete, clear-all delete, Korean name-first list UI, and textarea rehydration on load.",
-    "`README.md` and `FINAL_OUTPUT.md` match the shipped workflow and accurately disclose that real Chromium-based browser smoke could not be executed in this sandbox and is non-blocking for this iteration."
+    "`src/lib/render.js`, `src/main.js`, and `src/styles.css` now place the saved-player loader in a separate sidebar, default it to collapsed, keep the toolbar visible while collapsed, and render saved players as compact one-line rows with a dedicated row-body selection target and isolated delete button.",
+    "Core behavior remains intact from code inspection plus verification: header/headerless parsing, exact-10 load gating, local-storage save/load/delete flows, 6 candidate generation, `1탱 2딜 2힐` slot structure, candidate selection, and two-click swap editing.",
+    "Independent runtime checks confirmed the sample fixture still produces 113400 valid assignments, surfaces exactly 6 candidates, preserves ordering by total diff -> role diff sum -> tank diff -> unranked diff, and keeps candidates free of duplicate player assignment.",
+    "Rendered result HTML still hides score-oriented UI labels while preserving Korean product copy, compact candidate cards, team labels, and preference-point controls.",
+    "`README.md` and `FINAL_OUTPUT.md` are aligned with the shipped behavior and truthfully disclose that `npm run test:browser` was not completed in this sandbox because Chromium is unavailable."
   ],
   "findings": [],
   "required_fixes": [],
   "verification_run": [
     "`npm test`",
     "`npm run build`",
-    "`npm run test:browser` (fails in this sandbox because no Chromium-family browser is installed; current spec marks this gap non-blocking)",
-    "`node --input-type=module` script to compare sample-fixture candidates before/after extreme preference edits and confirm surfaced candidate IDs change while balance metrics stay tied",
-    "`node --input-type=module` script using `enumerateValidAssignments(...)`, `getTopCandidates(...)`, and `compareCandidateMetrics(...)` to verify total candidate count, top-6 size, role shape, uniqueness, and ordering",
-    "`node --input-type=module` script using `buildBalanceFromClipboard(...)` and `renderResult(...)` to confirm 6 candidates render and score labels remain hidden",
-    "Inspected `src/lib/optimizer.js`, `src/lib/appFlow.js`, `src/lib/editor.js`, `src/lib/playerStore.js`, `src/lib/preferences.js`, `src/lib/render.js`, `src/main.js`, `src/styles.css`, `README.md`, `FINAL_OUTPUT.md`, `scripts/browserSmoke.mjs`, and `dist/index.html`"
+    "`npm run test:browser` (fails in this sandbox: Chromium-family browser not installed)",
+    "`node --input-type=module` script verifying sample-fixture candidate count, top-6 ordering, uniqueness, role shape, and preference-driven tie-bucket changes",
+    "`node --input-type=module` script rendering `renderResult(...)` to confirm 6 candidate buttons and absence of score labels",
+    "Inspected `.harness/spec.md`, `src/main.js`, `src/lib/render.js`, `src/styles.css`, `src/lib/appFlow.js`, `src/lib/optimizer.js`, `src/lib/playerStore.js`, `src/lib/parseClipboard.js`, `src/lib/preferences.js`, `test/appFlow.test.js`, `test/responsiveLayout.test.js`, `test/optimizer.test.js`, `README.md`, and `FINAL_OUTPUT.md`"
   ],
-  "release_readiness": "Release-ready for this iteration. Residual risk remains around unexecuted real-browser smoke because this environment has no Chromium-family browser, but that gap is explicitly documented and non-blocking under the current spec."
+  "release_readiness": "Release-ready for this iteration. Residual risk is limited to unexecuted real-browser smoke in this environment, but that gap is explicitly documented and is non-blocking under the current spec."
 }

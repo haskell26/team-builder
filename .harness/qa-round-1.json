@@ -1,31 +1,36 @@
 {
   "verdict": "revise",
-  "summary": "Most of the iteration scope is present and verified: `npm test` and `npm run build` pass, header/headerless paste parsing works, the app renders 6 compact candidates with hidden balance numbers, saved-player exact-10 load/delete flows work, and two-click swap editing refreshes immediately. The release is still not ready because the new `6점` role-preference feature only changes displayed badges and does not actually influence the suggested teams, which misses a must-have acceptance item.",
+  "summary": "Most round-4 functionality is present and the claimed commands pass, but the saved-player loader still misses a core acceptance criterion: the full visible row is not actually selectable, and the narrow-width CSS regresses the new one-line row UX into stacked multi-line rows.",
   "score": 86,
   "strengths": [
-    "`npm test` passed across all 8 test files, and `npm run build` regenerated the static `dist/` bundle successfully.",
-    "Independent checks confirmed header-present and headerless TSV parsing, 6 visible candidates, valid `1탱 2딜 2힐` team shapes, and no duplicate player assignment inside a candidate.",
-    "The main UI stays Korean-first and keeps balance-score numbers hidden while still showing compact candidate previews, candidate selection, and immediate two-click swap editing.",
-    "Saved-player persistence is implemented with v1-to-v2 migration, exact-10 load gating, individual delete, and clear-all delete, and the docs now match the shipped non-blocking browser-smoke status."
+    "`npm test` passed across all 8 test files, including the updated app-flow and layout checks.",
+    "`npm run build` succeeded and produced a static `dist/` bundle suitable for frontend-only deployment.",
+    "Core round-3/round-4 behaviors appear intact from code and test inspection: header/headerless parsing, 6 candidate generation, `1탱 2딜 2힐` slot structure, candidate selection, swap editing, preference-point persistence, and hidden balance-score labels.",
+    "`README.md` and `FINAL_OUTPUT.md` are broadly aligned with the implemented sidebar/collapse flow and accurately describe the unrun browser smoke as non-blocking for this round."
   ],
   "findings": [
     {
       "severity": "high",
-      "title": "Role-preference points never affect the suggested teams",
-      "detail": "The spec requires role-preference information to be reflected in candidate calculation or the final suggested composition, but the implementation only surfaces it as metadata. In `src/lib/optimizer.js:42-62`, preference points are converted into slot badges, while `src/lib/optimizer.js:128-156` and `src/lib/optimizer.js:193-210` build and rank candidates using only tier-score and unranked metrics. An independent rebuild after extreme preference edits still returned the exact same 6 candidate IDs (`sameCandidateIdsAfterPreferenceExtremes: true`). `src/main.js:267-275` also only rehydrates existing candidates after a preference edit. In practice, the new `탱커 / 딜러 / 힐러 6점` UI changes labels but not the recommended teams.",
-      "fix": "Implement a concrete preference-aware influence path that preserves the mandated ordering precedence of total difference, role-difference sum, tank difference, and unranked difference. Then add regression coverage proving that materially different preference-point distributions can change the surfaced candidate/editor composition without violating the balance-ranking rules."
+      "title": "Saved-player selection does not cover the full visible row body",
+      "detail": "The spec requires clicking the saved-player row body, including empty space/background, to toggle selection. In the implementation only the inner `#saved-player-toggle-*` button receives the click handler (`src/main.js:90-117`). The wrapper row rendered by `renderSavedPlayer()` is an inert `<article>` containing that button plus a separate delete button (`src/lib/render.js:133-159`). CSS adds visible non-button space to the row via `.saved-player-row { gap: 10px; padding: 6px; }` (`src/styles.css:449-462`), so clicks on the row background/padding/gap do not toggle selection. The test named as full-hit-area coverage only clicks `#saved-player-toggle-*`, so this acceptance criterion is not actually verified (`test/appFlow.test.js:240-269`).",
+      "fix": "Make the row container itself the selection target for every non-delete area, or restructure the markup so a single control spans the full visible row body except the isolated delete action. Update the automated test to click row-level background space, not only the inner toggle button."
+    },
+    {
+      "severity": "medium",
+      "title": "The responsive fallback breaks the new compact one-line saved-player rows below 960px",
+      "detail": "Round 4 prioritizes a compressed one-line saved-player list, but the responsive CSS explicitly turns rows back into stacked vertical layouts at narrower widths: `.saved-player-row` switches to `flex-direction: column` and `.saved-player-row-button` switches to `grid-template-columns: 1fr` inside `@media (max-width: 960px)` (`src/styles.css:982-1008`). That reintroduces taller rows and extra vertical growth for the saved-player library in common narrow desktop/tablet widths, which conflicts with the spec’s one-line compact-list requirement and the docs’ current one-line UX description.",
+      "fix": "Keep the saved-player row horizontally compressed with truncation/ellipsis at narrower widths and limit the responsive fallback to stacking the sidebar itself. If a stacked row is intentional, the acceptance/docs need to be narrowed accordingly instead of claiming one-line rows generally."
     }
   ],
   "required_fixes": [
-    "Make role-preference points affect candidate/editor suggestions as a soft signal instead of display-only metadata.",
-    "Add automated regression tests that fail if extreme preference changes leave the surfaced candidate/editor composition unchanged."
+    "Make saved-player row selection truly row-wide for all non-delete visible space and add a test that proves background/empty-space clicks toggle selection.",
+    "Preserve the compact one-line saved-player row layout at narrower widths, or explicitly narrow the product/docs expectations if that behavior is not intended."
   ],
   "verification_run": [
     "`npm test`",
     "`npm run build`",
-    "`npm run test:browser` (fails here because no Chromium-family browser binary is installed; the current spec explicitly marks this gap non-blocking)",
-    "`node --input-type=module <<'EOF' ... parseMatchPlayersFromClipboard(...) / buildBalanceFromPlayers(...) / updateMatchPlayerPreferencePoints(...) ... => { \\\"headerErrors\\\": [], \\\"headerlessErrors\\\": [], \\\"candidateCountVisible\\\": 6, \\\"candidateShapeOk\\\": true, \\\"sameCandidateIdsAfterPreferenceExtremes\\\": true } EOF`",
-    "Inspected `src/lib/optimizer.js`, `src/main.js`, `src/lib/appFlow.js`, `src/lib/preferences.js`, `src/lib/playerStore.js`, `src/lib/render.js`, `README.md`, and `FINAL_OUTPUT.md`"
+    "`command -v chromium-browser || command -v chromium || command -v google-chrome || command -v google-chrome-stable || command -v chrome`",
+    "Inspected `.harness/spec.md`, `.harness/plan.json`, `src/main.js`, `src/lib/render.js`, `src/styles.css`, `src/lib/appFlow.js`, `src/lib/optimizer.js`, `src/lib/playerStore.js`, `test/appFlow.test.js`, `test/responsiveLayout.test.js`, `README.md`, and `FINAL_OUTPUT.md`"
   ],
-  "release_readiness": "Not release-ready. The core preference-point feature is only cosmetic today, so the shipped behavior does not fully meet the iteration spec even though the rest of the candidate/save/swap flows are in good shape."
+  "release_readiness": "Not release-ready. The sidebar refactor is close, but the saved-player row interaction and compact-row UX still fall short of this round’s core acceptance requirements."
 }

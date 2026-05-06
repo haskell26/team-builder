@@ -1,42 +1,44 @@
 {
-  "summary": "Implemented the QA blocker: role-preference points now influence which fully balance-tied candidate teams surface, and preference edits now trigger a full candidate/editor recompute instead of badge-only refresh. Tests and static build pass.",
+  "summary": "Addressed the round-2 blockers in the saved-player sidebar: the selectable hit area now covers the full visible row body, and the compact one-line row layout is preserved when the sidebar stacks at narrower widths. Tests, docs, and the built `dist/` bundle were updated to match.",
   "completed_work": [
-    "Updated `src/lib/optimizer.js` to compute per-candidate preference influence metadata and use it as a soft weighted selector only inside buckets that are already tied on the required balance metrics.",
-    "Updated `src/lib/appFlow.js` and `src/main.js` so changing a player's `탱커 / 딜러 / 힐러` points rebuilds the visible 6 candidates and selected editor state immediately.",
-    "Refreshed Korean UI copy in `src/constants/copy.js` and `src/lib/render.js` to explain that preference points only affect equally balanced options and do not override tier balance.",
-    "Added regression coverage in `test/optimizer.test.js`, `test/appFlow.test.js`, and `test/editor.test.js` proving extreme preference changes can alter surfaced candidates while preserving the mandated ranking precedence.",
-    "Updated `README.md` and `FINAL_OUTPUT.md` to document the shipped preference-aware tie handling, immediate recalculation behavior, and the non-blocking browser-smoke gap.",
-    "Ran the build to regenerate `dist/` from the updated source."
+    "Reworked saved-player row rendering so the row body (`#saved-player-row-body-*`) is the actual selection target, while the per-row delete button remains isolated.",
+    "Updated saved-player control wiring in `src/main.js` to toggle selection from the row body and support keyboard activation without changing load/save/result state behavior.",
+    "Tightened `src/styles.css` so saved-player rows stay horizontally compact with truncation under the `@media (max-width: 960px)` fallback instead of collapsing into stacked multi-line rows.",
+    "Updated `test/appFlow.test.js` and `test/responsiveLayout.test.js` to cover row-body selection and the non-stacked responsive contract.",
+    "Updated `README.md` and `FINAL_OUTPUT.md` to reflect the shipped row-wide selection and preserved one-line sidebar layout, then rebuilt `dist/`."
   ],
   "verification": [
     {
+      "command": "node --test test/responsiveLayout.test.js",
+      "result": "Passed."
+    },
+    {
       "command": "npm test",
-      "result": "Passed. All 8 test files passed."
+      "result": "Passed: 8/8 test files succeeded."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Static bundle regenerated in `dist/`."
+      "result": "Passed: rebuilt the static bundle in `dist/`."
     }
   ],
   "known_gaps": [
-    "`npm run test:browser` was not run in this environment; the current spec treats that browser/mobile smoke gap as non-blocking.",
-    "Preference points intentionally do not become a global ranking key; they only influence candidate surfacing inside already-equal balance buckets."
+    "Real browser/mobile smoke verification (`npm run test:browser`) was not run in this sandbox; docs still mark that gap as non-blocking for this round."
   ],
   "handoff_notes": [
-    "Key files for QA review are `src/lib/optimizer.js`, `src/lib/appFlow.js`, `src/main.js`, `test/optimizer.test.js`, `test/appFlow.test.js`, `test/editor.test.js`, `README.md`, and `FINAL_OUTPUT.md`.",
-    "The worktree already contained other modified files from earlier round work; I did not revert unrelated changes."
+    "The saved-player row selector used by the app-flow tests is now `#saved-player-row-body-{index}`; the old `#saved-player-toggle-*` id no longer exists.",
+    "The workspace was already dirty before this pass in `.harness/*`, `src/constants/copy.js`, and `dist/src/constants/copy.js`; those unrelated changes were left intact."
   ],
   "files_of_interest": [
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/optimizer.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/appFlow.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/main.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/constants/copy.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/render.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/optimizer.test.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/editor.test.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
-    "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"
+    "src/lib/render.js",
+    "src/main.js",
+    "src/styles.css",
+    "test/appFlow.test.js",
+    "test/responsiveLayout.test.js",
+    "README.md",
+    "FINAL_OUTPUT.md",
+    "dist/src/lib/render.js",
+    "dist/src/main.js",
+    "dist/src/styles.css"
   ],
   "ready_for_qa": true
 }

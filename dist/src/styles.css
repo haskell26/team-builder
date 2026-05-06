@@ -46,12 +46,14 @@ body {
 .page-shell,
 .main-grid > *,
 .hero-title-row > *,
+.workspace-sidebar,
+.saved-panel-shell,
+.saved-panel-header,
 .saved-toolbar,
 .saved-toolbar-actions,
 .preview-toolbar,
 .saved-player-row,
-.saved-player-main,
-.saved-player-pick,
+.saved-player-row-body,
 .roster-card,
 .roster-card-header,
 .role-tier-row,
@@ -73,11 +75,11 @@ body {
 .hero-subtitle,
 .section-heading p,
 .saved-toolbar-hint,
+.saved-panel-summary,
 .saved-panel-message,
 .guide-list-item,
 .assumption-list li,
 .roster-card-meta,
-.saved-player-secondary,
 .preference-total,
 .mini-slot-name,
 .editor-slot-name,
@@ -174,6 +176,24 @@ button {
   grid-template-columns: minmax(0, 1.3fr) minmax(320px, 0.9fr);
   gap: 20px;
   margin-bottom: 20px;
+}
+
+.workspace-stack,
+.workspace-sidebar {
+  display: grid;
+  gap: 20px;
+}
+
+.workspace-grid,
+.workspace-stack > .panel-card,
+.workspace-main > .panel-card,
+.workspace-sidebar > .panel-card {
+  margin-bottom: 0;
+}
+
+.workspace-main,
+.saved-panel-card {
+  min-width: 0;
 }
 
 .section-heading h2,
@@ -338,13 +358,35 @@ button {
   line-height: 1.7;
 }
 
+.saved-panel-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.saved-panel-header,
 .saved-toolbar,
 .preview-toolbar {
   display: flex;
   justify-content: space-between;
   gap: 16px;
   align-items: flex-start;
+}
+
+.saved-panel-toggle {
+  flex: 0 0 auto;
+}
+
+.saved-toolbar {
+  margin-bottom: 0;
+}
+
+.preview-toolbar {
   margin-bottom: 16px;
+}
+
+.saved-toolbar-hint,
+.saved-panel-summary {
+  margin: 0;
 }
 
 .saved-toolbar-actions {
@@ -360,9 +402,14 @@ button {
 }
 
 .saved-toolbar-meta,
-.saved-toolbar-hint,
 .saved-panel-message {
   margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.saved-toolbar-hint,
+.saved-panel-summary {
   color: var(--muted);
   line-height: 1.55;
 }
@@ -387,6 +434,12 @@ button {
   color: var(--danger);
 }
 
+.saved-player-list-scroll {
+  max-height: 420px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .saved-player-list,
 .roster-list {
   display: grid;
@@ -401,22 +454,18 @@ button {
 }
 
 .saved-player-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  overflow: hidden;
 }
 
-.saved-player-checkbox {
-  width: 18px;
-  height: 18px;
-  margin: 2px 0 0;
-  accent-color: var(--primary);
-  flex: 0 0 auto;
+.saved-player-row-selected {
+  border-color: rgba(17, 76, 81, 0.28);
+  box-shadow: 0 0 0 1px rgba(17, 76, 81, 0.08);
 }
 
-.saved-player-main,
+.saved-player-row-body,
 .roster-card {
   display: grid;
   gap: 14px;
@@ -426,16 +475,53 @@ button {
   padding: 16px;
 }
 
-.saved-player-pick,
+.saved-player-row-body {
+  width: 100%;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.saved-player-row-body:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px rgba(17, 76, 81, 0.18);
+}
+
+.saved-player-row:hover .saved-player-row-body,
+.saved-player-row-selected .saved-player-row-body {
+  background: rgba(17, 76, 81, 0.04);
+}
+
 .roster-card-header {
   display: flex;
   gap: 16px;
   align-items: flex-start;
 }
 
-.saved-player-pick {
+.saved-player-state {
+  display: inline-flex;
+  flex: 0 0 auto;
   align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(17, 76, 81, 0.1);
+  color: var(--primary);
+  font-size: 0.78rem;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.saved-player-row-selected .saved-player-state {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+  color: #f7f7f4;
 }
 
 .saved-player-name,
@@ -444,16 +530,27 @@ button {
   font-size: 1.05rem;
 }
 
-.saved-player-secondary,
+.saved-player-name {
+  flex: 0 1 132px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saved-player-summary {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .roster-card-meta,
 .preference-total {
   margin: 6px 0 0;
   color: var(--muted);
   line-height: 1.5;
-}
-
-.saved-player-secondary:first-of-type {
-  margin-top: 0;
 }
 
 .source-pill {
@@ -535,7 +632,14 @@ button {
 }
 
 .saved-player-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
+  min-width: 68px;
+  min-height: 100%;
+  border-radius: 0;
+  border-left: 1px solid rgba(17, 76, 81, 0.1);
 }
 
 .table-frame {
@@ -902,10 +1006,10 @@ button {
     grid-template-columns: 1fr;
   }
 
+  .saved-panel-header,
   .saved-toolbar,
   .saved-toolbar-actions,
   .preview-toolbar,
-  .saved-player-row,
   .roster-card-header,
   .editor-slot-top {
     flex-direction: column;
@@ -914,6 +1018,15 @@ button {
 
   .preference-controls {
     grid-template-columns: 1fr;
+  }
+
+  .saved-player-row-body {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+
+  .saved-player-delete {
+    min-width: 60px;
   }
 
   .hero-title-row {
