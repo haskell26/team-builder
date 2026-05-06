@@ -1,24 +1,31 @@
 {
-  "verdict": "pass",
-  "summary": "No blocking QA findings in the inspected workspace. The shipped app matches the round-3 scope I could verify directly: 6 compact candidate previews, Korean-first score-hidden UI, editable role preferences, localStorage-backed saved-player save/load with exact-10 gating, candidate selection, and immediate two-click swap editing with refreshed tier/preference metadata.",
-  "score": 96,
+  "verdict": "revise",
+  "summary": "Most of the iteration scope is present and verified: `npm test` and `npm run build` pass, header/headerless paste parsing works, the app renders 6 compact candidates with hidden balance numbers, saved-player exact-10 load/delete flows work, and two-click swap editing refreshes immediately. The release is still not ready because the new `6점` role-preference feature only changes displayed badges and does not actually influence the suggested teams, which misses a must-have acceptance item.",
+  "score": 86,
   "strengths": [
-    "`npm test` and `npm run build` both pass on the current workspace state, and the output remains a static frontend bundle under `dist/`.",
-    "Direct source inspection plus targeted runtime checks confirm the canonical `matchPlayers` flow, saved-preference hydration for pasted names, exact-10 saved-player loading, and textarea rewrite with canonical header TSV.",
-    "`src/lib/optimizer.js` and runtime verification confirm 6 visible candidates, valid `1탱 2딜 2힐` composition per team, no duplicate player assignment within a candidate, and ranking keyed by total score difference, role-score-difference sum, tank difference, then unranked difference.",
-    "`src/lib/editor.js`, `src/lib/render.js`, and the app-flow checks confirm that candidate selection loads a fresh editor, two slot clicks swap players immediately, and destination-slot tier plus preference-rank data recalculate after the swap while numeric score surfaces stay hidden.",
-    "`README.md` and `FINAL_OUTPUT.md` are aligned with the shipped behavior and accurately disclose the remaining optional browser-smoke gap in this sandbox."
+    "`npm test` passed across all 8 test files, and `npm run build` regenerated the static `dist/` bundle successfully.",
+    "Independent checks confirmed header-present and headerless TSV parsing, 6 visible candidates, valid `1탱 2딜 2힐` team shapes, and no duplicate player assignment inside a candidate.",
+    "The main UI stays Korean-first and keeps balance-score numbers hidden while still showing compact candidate previews, candidate selection, and immediate two-click swap editing.",
+    "Saved-player persistence is implemented with v1-to-v2 migration, exact-10 load gating, individual delete, and clear-all delete, and the docs now match the shipped non-blocking browser-smoke status."
   ],
-  "findings": [],
-  "required_fixes": [],
+  "findings": [
+    {
+      "severity": "high",
+      "title": "Role-preference points never affect the suggested teams",
+      "detail": "The spec requires role-preference information to be reflected in candidate calculation or the final suggested composition, but the implementation only surfaces it as metadata. In `src/lib/optimizer.js:42-62`, preference points are converted into slot badges, while `src/lib/optimizer.js:128-156` and `src/lib/optimizer.js:193-210` build and rank candidates using only tier-score and unranked metrics. An independent rebuild after extreme preference edits still returned the exact same 6 candidate IDs (`sameCandidateIdsAfterPreferenceExtremes: true`). `src/main.js:267-275` also only rehydrates existing candidates after a preference edit. In practice, the new `탱커 / 딜러 / 힐러 6점` UI changes labels but not the recommended teams.",
+      "fix": "Implement a concrete preference-aware influence path that preserves the mandated ordering precedence of total difference, role-difference sum, tank difference, and unranked difference. Then add regression coverage proving that materially different preference-point distributions can change the surfaced candidate/editor composition without violating the balance-ranking rules."
+    }
+  ],
+  "required_fixes": [
+    "Make role-preference points affect candidate/editor suggestions as a soft signal instead of display-only metadata.",
+    "Add automated regression tests that fail if extreme preference changes leave the surfaced candidate/editor composition unchanged."
+  ],
   "verification_run": [
     "`npm test`",
     "`npm run build`",
-    "`npm run test:browser` (fails here because no Chromium-family browser binary is installed in the sandbox; current spec marks this gap non-blocking)",
-    "`node -v`",
-    "`rg -n \"Final Edit|compact preview|TANK|DPS|SUP|scoreDifference|팀 A 총점|팀 B 총점|점수 차이|역할군 차이 합|탱커 차이|언랭 분배 차이\" src dist README.md FINAL_OUTPUT.md`",
-    "Targeted `node --input-type=module` checks against `src/lib/appFlow.js`, `src/lib/playerStore.js`, `src/lib/optimizer.js`, `src/lib/editor.js`, and `src/lib/render.js` to verify header/headerless parsing, saved-player hydration, 6-candidate rendering, hidden-score UI, candidate reselection reset, and swap recalculation",
-    "Inspected `src/main.js`, `src/lib/appFlow.js`, `src/lib/optimizer.js`, `src/lib/editor.js`, `src/lib/render.js`, `src/lib/playerStore.js`, `src/lib/preferences.js`, `src/lib/parseClipboard.js`, `src/styles.css`, `README.md`, and `FINAL_OUTPUT.md`"
+    "`npm run test:browser` (fails here because no Chromium-family browser binary is installed; the current spec explicitly marks this gap non-blocking)",
+    "`node --input-type=module <<'EOF' ... parseMatchPlayersFromClipboard(...) / buildBalanceFromPlayers(...) / updateMatchPlayerPreferencePoints(...) ... => { \\\"headerErrors\\\": [], \\\"headerlessErrors\\\": [], \\\"candidateCountVisible\\\": 6, \\\"candidateShapeOk\\\": true, \\\"sameCandidateIdsAfterPreferenceExtremes\\\": true } EOF`",
+    "Inspected `src/lib/optimizer.js`, `src/main.js`, `src/lib/appFlow.js`, `src/lib/preferences.js`, `src/lib/playerStore.js`, `src/lib/render.js`, `README.md`, and `FINAL_OUTPUT.md`"
   ],
-  "release_readiness": "Release-ready for this iteration. Residual risk remains around optional real-browser smoke execution because Chromium is unavailable in this sandbox, but that gap is explicitly documented and is non-blocking under the current spec."
+  "release_readiness": "Not release-ready. The core preference-point feature is only cosmetic today, so the shipped behavior does not fully meet the iteration spec even though the rest of the candidate/save/swap flows are in good shape."
 }

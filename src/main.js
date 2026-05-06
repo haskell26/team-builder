@@ -7,10 +7,16 @@ import {
   parseMatchPlayersFromClipboard,
   refreshResultsFromPlayers,
   selectCandidate,
-  updateMatchPlayerPreference,
+  updateMatchPlayerPreferencePoints,
 } from './lib/appFlow.js';
+import { ROLE_ORDER } from './config/gameConfig.js';
 import { getEditableSlots } from './lib/editor.js';
-import { loadPlayerStore, saveCurrentPlayersToStore } from './lib/playerStore.js';
+import {
+  clearSavedPlayerStore,
+  deleteSavedPlayerRecord,
+  loadPlayerStore,
+  saveCurrentPlayersToStore,
+} from './lib/playerStore.js';
 import { renderFeedback, renderPreview, renderResult, renderSavedPlayers, renderShell } from './lib/render.js';
 
 const root = document.querySelector('#app');
@@ -82,23 +88,35 @@ function updateFeedbackPanel() {
 
 function bindSavedPlayerControls() {
   const loadSelectedButton = document.querySelector('#load-selected-button');
+  const clearSavedButton = document.querySelector('#clear-saved-button');
 
   if (loadSelectedButton) {
     loadSelectedButton.disabled = !canLoadSavedSelection() || !state.storageAvailable;
     loadSelectedButton.addEventListener('click', handleLoadSelectedSavedPlayers);
   }
 
+  if (clearSavedButton) {
+    clearSavedButton.disabled = state.savedPlayers.length === 0 || !state.storageAvailable;
+    clearSavedButton.addEventListener('click', handleClearSavedPlayers);
+  }
+
   state.savedPlayers.forEach((record, index) => {
     const checkbox = document.querySelector(`#saved-player-checkbox-${index}`);
+    const deleteButton = document.querySelector(`#saved-player-delete-${index}`);
 
-    if (!checkbox) {
-      return;
+    if (checkbox) {
+      checkbox.checked = state.savedPlayerSelectionIds.has(record.id);
+      checkbox.addEventListener('change', (event) => {
+        handleSavedPlayerToggle(record.id, Boolean(event.currentTarget.checked));
+      });
     }
 
-    checkbox.checked = state.savedPlayerSelectionIds.has(record.id);
-    checkbox.addEventListener('change', (event) => {
-      handleSavedPlayerToggle(record.id, Boolean(event.currentTarget.checked));
-    });
+    if (deleteButton) {
+      deleteButton.disabled = !state.storageAvailable;
+      deleteButton.addEventListener('click', () => {
+        handleDeleteSavedPlayer(record.id);
+      });
+    }
   });
 }
 
@@ -122,17 +140,23 @@ function bindPreviewControls() {
   }
 
   state.matchPlayers.forEach((player, playerIndex) => {
-    player.preferenceOrder.forEach((role, rankIndex) => {
-      const select = document.querySelector(`#preference-select-${playerIndex}-${rankIndex}`);
+    ROLE_ORDER.forEach((role) => {
+      const minusButton = document.querySelector(`#preference-minus-${playerIndex}-${role}`);
+      const plusButton = document.querySelector(`#preference-plus-${playerIndex}-${role}`);
 
-      if (!select) {
-        return;
+      if (minusButton) {
+        minusButton.disabled = player.preferencePoints[role] === 0;
+        minusButton.addEventListener('click', () => {
+          handlePreferenceStep(player.id, role, -1);
+        });
       }
 
-      select.value = role;
-      select.addEventListener('change', (event) => {
-        handlePreferenceChange(player.id, rankIndex, event.currentTarget.value);
-      });
+      if (plusButton) {
+        plusButton.disabled = player.preferencePoints[role] === 6;
+        plusButton.addEventListener('click', () => {
+          handlePreferenceStep(player.id, role, 1);
+        });
+      }
     });
   });
 }
@@ -240,13 +264,15 @@ function handleSlotSelection(slotId) {
   updateResultPanel();
 }
 
-function handlePreferenceChange(playerId, rankIndex, nextRole) {
-  state.matchPlayers = updateMatchPlayerPreference(state.matchPlayers, playerId, rankIndex, nextRole);
+function handlePreferenceStep(playerId, role, delta) {
+  state.matchPlayers = updateMatchPlayerPreferencePoints(state.matchPlayers, playerId, role, delta);
 
   if (state.candidates.length > 0 || state.editor) {
     const refreshed = refreshResultsFromPlayers(state.candidates, state.editor, state.matchPlayers);
 
     state.candidates = refreshed.candidates;
+    state.candidateCount = refreshed.candidateCount;
+    state.selectedCandidateId = refreshed.selectedCandidateId;
     state.editor = refreshed.editor;
   }
 
@@ -264,7 +290,7 @@ function handleSaveCurrentRoster() {
   state.storageAvailable = result.storageAvailable;
   state.storageWarning = result.warning;
   state.savedPanelMessage = result.success
-    ? '현재 10명의 티어와 역할 선호도를 저장하거나 업데이트했습니다.'
+    ? '현재 10명의 티어와 6점 선호 분배를 저장하거나 업데이트했습니다.'
     : '';
   reconcileSavedSelections();
   updatePanels();
@@ -280,6 +306,31 @@ function handleSavedPlayerToggle(playerId, checked) {
   updateSavedPlayerPanel();
 }
 
+function handleDeleteSavedPlayer(playerId) {
+  const result = deleteSavedPlayerRecord(state.savedPlayers, playerId);
+
+  state.savedPlayers = result.records;
+  state.storageAvailable = result.storageAvailable;
+  state.storageWarning = result.warning;
+  state.savedPanelMessage = result.success ? '저장된 플레이어 1명을 목록에서 삭제했습니다.' : '';
+  reconcileSavedSelections();
+  updateSavedPlayerPanel();
+}
+
+function handleClearSavedPlayers() {
+  const result = clearSavedPlayerStore();
+
+  if (result.success) {
+    state.savedPlayers = [];
+    state.savedPlayerSelectionIds = new Set();
+  }
+
+  state.storageAvailable = result.storageAvailable;
+  state.storageWarning = result.warning;
+  state.savedPanelMessage = result.success ? '저장된 플레이어 목록을 모두 삭제했습니다.' : '';
+  updateSavedPlayerPanel();
+}
+
 function handleLoadSelectedSavedPlayers() {
   if (!canLoadSavedSelection()) {
     return;
@@ -291,7 +342,7 @@ function handleLoadSelectedSavedPlayers() {
   state.clipboardText = loadedMatch.clipboardText;
   state.errors = [];
   state.matchPlayers = loadedMatch.players;
-  state.savedPanelMessage = '선택한 10명을 현재 매치 입력으로 불러왔습니다. 필요하면 선호도를 조금만 다듬은 뒤 팀을 계산해 주세요.';
+  state.savedPanelMessage = '선택한 10명을 현재 매치 입력으로 불러왔습니다. 필요하면 6점 선호 분배를 조금만 조정한 뒤 팀을 계산해 주세요.';
   resetResults();
   elements.textarea.value = state.clipboardText;
   updatePanels();

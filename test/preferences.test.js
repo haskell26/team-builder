@@ -2,50 +2,102 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  deriveDefaultPreferenceOrder,
+  PREFERENCE_POINT_TOTAL,
+  adjustPreferencePoints,
+  createDefaultPreferencePoints,
   getPreferenceMeta,
-  normalizePreferenceOrder,
-  updatePreferenceOrder,
+  migratePreferenceOrderToPoints,
+  normalizePreferencePoints,
+  resolvePreferencePoints,
+  summarizePreferenceFits,
 } from '../src/lib/preferences.js';
 
-function tier(key, description, score) {
-  return {
-    key,
-    label: description === '언랭' ? 'U' : description,
-    description,
-    score,
-    isUnranked: score === 0,
-    rawValue: description,
-  };
-}
+test('createDefaultPreferencePoints starts every player at 2 / 2 / 2', () => {
+  assert.deepEqual(createDefaultPreferencePoints(), {
+    tank: 2,
+    damage: 2,
+    support: 2,
+  });
+});
 
-test('default preference order follows highest tier score and tank-damage-support tie break', () => {
-  const player = {
-    roles: {
-      tank: tier('master', '마스터', 6),
-      damage: tier('master', '마스터', 6),
-      support: tier('gold', '골드', 3),
+test('normalizePreferencePoints clamps values to non-negative integers and keeps the total at 6', () => {
+  const points = normalizePreferencePoints({
+    tank: 6.8,
+    damage: -3,
+    support: 0.4,
+  });
+
+  assert.deepEqual(points, {
+    tank: 6,
+    damage: 0,
+    support: 0,
+  });
+  assert.equal(points.tank + points.damage + points.support, PREFERENCE_POINT_TOTAL);
+});
+
+test('adjustPreferencePoints raises one role while rebalancing the other two', () => {
+  const adjusted = adjustPreferencePoints(
+    {
+      tank: 2,
+      damage: 2,
+      support: 2,
     },
-  };
+    'tank',
+    3,
+  );
 
-  assert.deepEqual(deriveDefaultPreferenceOrder(player), ['tank', 'damage', 'support']);
+  assert.deepEqual(adjusted, {
+    tank: 5,
+    damage: 0,
+    support: 1,
+  });
+  assert.equal(adjusted.tank + adjusted.damage + adjusted.support, PREFERENCE_POINT_TOTAL);
 });
 
-test('normalizePreferenceOrder removes duplicates and appends missing roles', () => {
-  assert.deepEqual(normalizePreferenceOrder(['support', 'support', 'tank']), ['support', 'tank', 'damage']);
+test('migratePreferenceOrderToPoints preserves legacy 3 / 2 / 1 intent', () => {
+  assert.deepEqual(migratePreferenceOrderToPoints(['support', 'tank', 'damage']), {
+    tank: 2,
+    damage: 1,
+    support: 3,
+  });
 });
 
-test('updatePreferenceOrder keeps role order unique when a select value changes', () => {
-  const initialOrder = ['tank', 'support', 'damage'];
-
-  assert.deepEqual(updatePreferenceOrder(initialOrder, 1, 'tank', initialOrder), ['support', 'tank', 'damage']);
-  assert.deepEqual(updatePreferenceOrder(initialOrder, 2, 'tank', initialOrder), ['support', 'damage', 'tank']);
+test('resolvePreferencePoints falls back to migrated legacy order when needed', () => {
+  assert.deepEqual(resolvePreferencePoints({ preferenceOrder: ['damage', 'support', 'tank'] }), {
+    tank: 1,
+    damage: 3,
+    support: 2,
+  });
 });
 
-test('getPreferenceMeta returns visible rank metadata for an assigned role', () => {
-  const preferenceMeta = getPreferenceMeta(['support', 'tank', 'damage'], 'tank');
+test('getPreferenceMeta returns assigned-role point metadata', () => {
+  const preferenceMeta = getPreferenceMeta(
+    {
+      tank: 1,
+      damage: 4,
+      support: 1,
+    },
+    'damage',
+  );
 
-  assert.equal(preferenceMeta.preferenceRank, 2);
-  assert.equal(preferenceMeta.preferenceLabel, '2순위');
-  assert.equal(preferenceMeta.preferenceFitKey, 'rank-2');
+  assert.equal(preferenceMeta.assignedPreferencePoints, 4);
+  assert.equal(preferenceMeta.preferenceLabel, '선호 4점');
+  assert.equal(preferenceMeta.preferenceFitKey, 'points-4');
+});
+
+test('summarizePreferenceFits groups assigned-role points into compact display buckets', () => {
+  const summary = summarizePreferenceFits([
+    { assignedPreferencePoints: 4 },
+    { assignedPreferencePoints: 3 },
+    { assignedPreferencePoints: 2 },
+    { assignedPreferencePoints: 1 },
+    { assignedPreferencePoints: 0 },
+  ]);
+
+  assert.deepEqual(summary, {
+    high: 2,
+    balanced: 1,
+    low: 1,
+    zero: 1,
+  });
 });

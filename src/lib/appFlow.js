@@ -1,8 +1,13 @@
 import { EXPECTED_HEADERS, ROLE_ORDER } from '../config/gameConfig.js';
-import { createEditableCandidate, refreshEditableCandidate, clearSelectedSlot, selectSlot, swapSlots } from './editor.js';
-import { getTopCandidates, hydrateCandidatesWithPlayers } from './optimizer.js';
+import { createEditableCandidate, clearSelectedSlot, selectSlot, swapSlots } from './editor.js';
+import { getTopCandidates } from './optimizer.js';
 import { parseClipboard } from './parseClipboard.js';
-import { PREFERENCE_SOURCES, resolvePreferenceOrder, updatePreferenceOrder } from './preferences.js';
+import {
+  PREFERENCE_SOURCES,
+  adjustPreferencePoints,
+  clonePreferencePoints,
+  resolvePreferencePoints,
+} from './preferences.js';
 
 function cloneTierSnapshot(tier) {
   return {
@@ -35,7 +40,7 @@ export function hydrateMatchPlayers(players, savedPlayerRecords = []) {
     return {
       ...player,
       roles: cloneRoleMap(player.roles),
-      preferenceOrder: resolvePreferenceOrder(player, savedRecord?.preferenceOrder),
+      preferencePoints: resolvePreferencePoints(player, savedRecord?.preferencePoints, savedRecord?.preferenceOrder),
       preferenceSource: savedRecord ? PREFERENCE_SOURCES.saved : PREFERENCE_SOURCES.default,
     };
   });
@@ -103,14 +108,29 @@ export function buildBalanceFromClipboard(rawText, options = {}) {
   return buildBalanceFromPlayers(parsed.players, optimizerOptions);
 }
 
-export function refreshResultsFromPlayers(candidates, editor, players) {
+export function refreshResultsFromPlayers(candidates, editor, players, options = {}) {
+  if (!players.length) {
+    return {
+      candidates: [],
+      candidateCount: 0,
+      selectedCandidateId: null,
+      editor: null,
+    };
+  }
+
+  const selectedCandidateId = editor?.candidateId ?? candidates[0]?.id ?? null;
+  const { candidates: nextCandidates, candidateCount } = getTopCandidates(players, options);
+  const selectionState = getSelectedCandidateState(nextCandidates, players, selectedCandidateId, candidateCount);
+
   return {
-    candidates: hydrateCandidatesWithPlayers(candidates, players),
-    editor: refreshEditableCandidate(editor, players),
+    candidates: nextCandidates,
+    candidateCount,
+    selectedCandidateId: selectionState.selectedCandidateId,
+    editor: selectionState.editor,
   };
 }
 
-export function updateMatchPlayerPreference(matchPlayers, playerId, rankIndex, nextRole) {
+export function updateMatchPlayerPreferencePoints(matchPlayers, playerId, role, delta) {
   return matchPlayers.map((player) => {
     if (player.id !== playerId) {
       return player;
@@ -118,12 +138,7 @@ export function updateMatchPlayerPreference(matchPlayers, playerId, rankIndex, n
 
     return {
       ...player,
-      preferenceOrder: updatePreferenceOrder(
-        player.preferenceOrder,
-        rankIndex,
-        nextRole,
-        resolvePreferenceOrder(player),
-      ),
+      preferencePoints: adjustPreferencePoints(player.preferencePoints, role, delta),
       preferenceSource: PREFERENCE_SOURCES.manual,
     };
   });
@@ -135,7 +150,7 @@ export function createMatchPlayersFromSavedRecords(savedPlayerRecords) {
     name: record.name,
     sourceRow: index + 2,
     roles: cloneRoleMap(record.roles),
-    preferenceOrder: resolvePreferenceOrder({ roles: record.roles }, record.preferenceOrder),
+    preferencePoints: resolvePreferencePoints(record, record.preferencePoints, record.preferenceOrder),
     preferenceSource: PREFERENCE_SOURCES.saved,
   }));
 }
@@ -153,7 +168,10 @@ export function serializeMatchPlayers(players, { includeHeader = true } = {}) {
 }
 
 export function loadSavedPlayersIntoMatch(savedPlayerRecords) {
-  const players = createMatchPlayersFromSavedRecords(savedPlayerRecords);
+  const players = createMatchPlayersFromSavedRecords(savedPlayerRecords).map((player) => ({
+    ...player,
+    preferencePoints: clonePreferencePoints(player.preferencePoints),
+  }));
 
   return {
     players,

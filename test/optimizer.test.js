@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { getTopCandidates, optimizeTeams, rankCandidates } from '../src/lib/optimizer.js';
+import { updateMatchPlayerPreferencePoints } from '../src/lib/appFlow.js';
+import { compareCandidateMetrics, getTopCandidates, optimizeTeams, rankCandidates } from '../src/lib/optimizer.js';
 import { parseClipboard } from '../src/lib/parseClipboard.js';
 
 function makePlayer(name, tank, damage, support) {
@@ -49,6 +50,16 @@ async function loadSamplePlayers() {
   return parsed.players;
 }
 
+function createSequenceRng(sequence) {
+  let index = 0;
+
+  return () => {
+    const value = sequence[index % sequence.length];
+    index += 1;
+    return value;
+  };
+}
+
 test('optimizer preserves 1탱 2딜 2힐 composition and unique players across the top 6 candidates', async () => {
   const players = await loadSamplePlayers();
   const { candidates, candidateCount } = getTopCandidates(players, {
@@ -63,13 +74,18 @@ test('optimizer preserves 1탱 2딜 2힐 composition and unique players across t
   for (const candidate of candidates) {
     const assignments = candidate.teams.flatMap((team) => team.assignments).map((assignment) => assignment.playerName);
     const slots = candidate.teams.flatMap((team) => team.slots);
+    const preferenceSummaryTotal =
+      candidate.preferenceSummary.high +
+      candidate.preferenceSummary.balanced +
+      candidate.preferenceSummary.low +
+      candidate.preferenceSummary.zero;
 
     assert.equal(candidate.teams.length, 2);
     assert.equal(new Set(assignments).size, 10);
     assert.equal(assignments.length, 10);
     assert.equal(slots.length, 10);
     assert.equal(new Set(slots.map((slot) => slot.id)).size, 10);
-    assert.equal(candidate.preferenceSummary.rank1 + candidate.preferenceSummary.rank2 + candidate.preferenceSummary.rank3, 10);
+    assert.equal(preferenceSummaryTotal, 10);
 
     for (const team of candidate.teams) {
       assert.equal(team.assignments.filter((assignment) => assignment.assignedRole === 'tank').length, 1);
@@ -78,13 +94,12 @@ test('optimizer preserves 1탱 2딜 2힐 composition and unique players across t
       assert.equal(team.slots.filter((slot) => slot.role === 'tank').length, 1);
       assert.equal(team.slots.filter((slot) => slot.role === 'damage').length, 2);
       assert.equal(team.slots.filter((slot) => slot.role === 'support').length, 2);
-      assert.equal(team.preferenceSummary.rank1 + team.preferenceSummary.rank2 + team.preferenceSummary.rank3, 5);
-      assert.ok(team.slots.every((slot) => typeof slot.preferenceRank === 'number'));
+      assert.ok(team.slots.every((slot) => typeof slot.assignedPreferencePoints === 'number'));
     }
   }
 });
 
-test('optimizeTeams keeps the best-candidate flow while exposing ranked candidate metadata', () => {
+test('optimizer can find a perfect balance when mirrored role tiers are available', () => {
   const players = [
     makePlayer('탱커1', tier('master', '마스터', 6), tier('unranked', '언랭', 0), tier('unranked', '언랭', 0)),
     makePlayer('탱커2', tier('master', '마스터', 6), tier('unranked', '언랭', 0), tier('unranked', '언랭', 0)),
@@ -144,5 +159,46 @@ test('exact metric ties are randomized only inside their tie bucket when rng is 
   assert.deepEqual(
     ranked.map((candidate) => candidate.candidateKey),
     ['leader', 'tie-b', 'tie-a', 'tail'],
+  );
+});
+
+test('preference points can change surfaced candidates without breaking balance ranking precedence', async () => {
+  const basePlayers = await loadSamplePlayers();
+  const baseResult = getTopCandidates(basePlayers, {
+    limit: 6,
+    rng: createSequenceRng([0.11, 0.42, 0.73, 0.24, 0.55, 0.86]),
+  });
+  let preferredPlayers = basePlayers;
+  const preferenceUpdates = [
+    ['하늘방패', 'tank', 4],
+    ['정조준', 'damage', 4],
+    ['플랭크', 'damage', 4],
+    ['빛의수호', 'support', 4],
+    ['구원천사', 'support', 4],
+    ['언랭복귀', 'tank', 4],
+  ];
+
+  for (const [playerId, role, delta] of preferenceUpdates) {
+    preferredPlayers = updateMatchPlayerPreferencePoints(preferredPlayers, playerId, role, delta);
+  }
+
+  const preferredResult = getTopCandidates(preferredPlayers, {
+    limit: 6,
+    rng: createSequenceRng([0.11, 0.42, 0.73, 0.24, 0.55, 0.86]),
+  });
+
+  assert.notDeepEqual(
+    preferredResult.candidates.map((candidate) => candidate.candidateKey),
+    baseResult.candidates.map((candidate) => candidate.candidateKey),
+  );
+
+  for (let index = 1; index < preferredResult.candidates.length; index += 1) {
+    assert.ok(compareCandidateMetrics(preferredResult.candidates[index - 1], preferredResult.candidates[index]) <= 0);
+  }
+
+  assert.ok(
+    preferredResult.candidates.some(
+      (candidate) => candidate.preferenceSignal.totalAssignedPreferencePoints > baseResult.candidates[0].preferenceSignal.totalAssignedPreferencePoints,
+    ),
   );
 });

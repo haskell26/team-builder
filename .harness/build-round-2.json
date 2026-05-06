@@ -1,46 +1,40 @@
 {
-  "summary": "Addressed the prior QA blockers: shipped UI copy is now Korean-only on the app surface, and the swap editor now rebuilds full team summaries after every edit so visible slots and internal derived data stay consistent.",
+  "summary": "Implemented the QA blocker: role-preference points now influence which fully balance-tied candidate teams surface, and preference edits now trigger a full candidate/editor recompute instead of badge-only refresh. Tests and static build pass.",
   "completed_work": [
-    "Localized the remaining shipped UI strings by replacing `TANK/DPS/SUP`, `Final Edit`, and `compact preview` with Korean copy in the source UI and regenerated `dist/`.",
-    "Refactored [`src/lib/editor.js`](/home/user/harness-engineering/projects/team-builder/workspace/src/lib/editor.js) to rehydrate each team from fixed slot state, recomputing `assignments`, `roleTotals`, `totalScore`, and `unrankedCount` on editor creation and after swaps.",
-    "Added regression coverage for Korean-only UI output and post-swap team-summary coherence in [`test/appFlow.test.js`](/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js) and [`test/editor.test.js`](/home/user/harness-engineering/projects/team-builder/workspace/test/editor.test.js).",
-    "Updated [`README.md`](/home/user/harness-engineering/projects/team-builder/workspace/README.md) and [`FINAL_OUTPUT.md`](/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md) to describe the localized compact-preview workflow, the recomputed swap model, and the current browser-verification limits."
+    "Updated `src/lib/optimizer.js` to compute per-candidate preference influence metadata and use it as a soft weighted selector only inside buckets that are already tied on the required balance metrics.",
+    "Updated `src/lib/appFlow.js` and `src/main.js` so changing a player's `탱커 / 딜러 / 힐러` points rebuilds the visible 6 candidates and selected editor state immediately.",
+    "Refreshed Korean UI copy in `src/constants/copy.js` and `src/lib/render.js` to explain that preference points only affect equally balanced options and do not override tier balance.",
+    "Added regression coverage in `test/optimizer.test.js`, `test/appFlow.test.js`, and `test/editor.test.js` proving extreme preference changes can alter surfaced candidates while preserving the mandated ranking precedence.",
+    "Updated `README.md` and `FINAL_OUTPUT.md` to document the shipped preference-aware tie handling, immediate recalculation behavior, and the non-blocking browser-smoke gap.",
+    "Ran the build to regenerate `dist/` from the updated source."
   ],
   "verification": [
     {
       "command": "npm test",
-      "result": "Passed. Node test suite completed with 6/6 test files green, including app flow, editor, optimizer, parser, browser smoke helpers, and responsive layout checks."
+      "result": "Passed. All 8 test files passed."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Static bundle rebuilt successfully into `dist/`."
-    },
-    {
-      "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do printf '%s: ' \"$name\"; command -v \"$name\" || true; done",
-      "result": "No Chromium-family browser binary was available in this environment, so `npm run test:browser` could not be run here."
-    },
-    {
-      "command": "rg -n \"Final Edit|compact preview|TANK|DPS|SUP\" dist || true",
-      "result": "No matches. The rebuilt `dist/` bundle no longer contains the stale English UI labels that QA flagged."
+      "result": "Passed. Static bundle regenerated in `dist/`."
     }
   ],
   "known_gaps": [
-    "`npm run test:browser` remains unverified in this sandbox because no Chromium-family browser is installed.",
-    "The browser smoke script still validates built JS/CSS through a temporary shell; full deployed-HTML browser verification should be done in a follow-up environment. This remains non-blocking for this round per the active spec."
+    "`npm run test:browser` was not run in this environment; the current spec treats that browser/mobile smoke gap as non-blocking.",
+    "Preference points intentionally do not become a global ranking key; they only influence candidate surfacing inside already-equal balance buckets."
   ],
   "handoff_notes": [
-    "The workspace was already dirty before this pass. I did not revert unrelated existing changes in `.harness/`, `src/`, `test/`, or `dist/`.",
-    "QA should re-check two areas specifically: Korean-only result UI text and post-swap coherence between visible slots and derived team summary data.",
-    "`dist/` was regenerated from the current source tree during `npm run build`, so the bundle reflects the latest source changes."
+    "Key files for QA review are `src/lib/optimizer.js`, `src/lib/appFlow.js`, `src/main.js`, `test/optimizer.test.js`, `test/appFlow.test.js`, `test/editor.test.js`, `README.md`, and `FINAL_OUTPUT.md`.",
+    "The worktree already contained other modified files from earlier round work; I did not revert unrelated changes."
   ],
   "files_of_interest": [
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/editor.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/render.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/src/config/gameConfig.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/optimizer.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/appFlow.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/main.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/src/constants/copy.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/test/editor.test.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/src/lib/render.js",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/optimizer.test.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/test/appFlow.test.js",
-    "/home/user/harness-engineering/projects/team-builder/workspace/scripts/browserSmoke.mjs",
+    "/home/user/harness-engineering/projects/team-builder/workspace/test/editor.test.js",
     "/home/user/harness-engineering/projects/team-builder/workspace/README.md",
     "/home/user/harness-engineering/projects/team-builder/workspace/FINAL_OUTPUT.md"
   ],

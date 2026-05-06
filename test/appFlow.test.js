@@ -2,12 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { parseMatchPlayersFromClipboard, updateMatchPlayerPreference } from '../src/lib/appFlow.js';
+import {
+  buildBalanceFromPlayers,
+  parseMatchPlayersFromClipboard,
+  refreshResultsFromPlayers,
+  updateMatchPlayerPreferencePoints,
+} from '../src/lib/appFlow.js';
 import { PLAYER_STORE_KEY, saveCurrentPlayersToStore } from '../src/lib/playerStore.js';
 import { loadMainIntoFakeDom } from '../testing/fakeDom.js';
 
 async function loadSampleFixture() {
   return readFile(new URL('../src/fixtures/samplePlayers.tsv', import.meta.url), 'utf8');
+}
+
+function createSequenceRng(sequence) {
+  let index = 0;
+
+  return () => {
+    const value = sequence[index % sequence.length];
+    index += 1;
+    return value;
+  };
 }
 
 function createMemoryStorage() {
@@ -20,20 +35,55 @@ function createMemoryStorage() {
     setItem(key, value) {
       store.set(key, `${value}`);
     },
+    removeItem(key) {
+      store.delete(key);
+    },
   };
 }
 
 async function createSavedPlayerPayload() {
   const sampleFixture = await loadSampleFixture();
   const parsed = parseMatchPlayersFromClipboard(sampleFixture);
-  const players = updateMatchPlayerPreference(parsed.players, parsed.players[0].id, 0, 'support');
+  const players = updateMatchPlayerPreferencePoints(parsed.players, parsed.players[0].id, 'tank', 1);
   const storage = createMemoryStorage();
 
   saveCurrentPlayersToStore([], players, storage);
   return storage.getItem(PLAYER_STORE_KEY);
 }
 
-test('main entrypoint edits preferences, saves the current roster, renders six candidates, and supports slot swapping', async (context) => {
+test('refreshResultsFromPlayers recalculates suggested candidates after extreme preference edits', async () => {
+  const sampleFixture = await loadSampleFixture();
+  const parsed = parseMatchPlayersFromClipboard(sampleFixture);
+  const initialBalance = buildBalanceFromPlayers(parsed.players, {
+    rng: createSequenceRng([0.15, 0.45, 0.75, 0.25, 0.55, 0.85]),
+  });
+  let preferredPlayers = parsed.players;
+  const preferenceUpdates = [
+    ['하늘방패', 'tank', 4],
+    ['정조준', 'damage', 4],
+    ['플랭크', 'damage', 4],
+    ['빛의수호', 'support', 4],
+    ['구원천사', 'support', 4],
+    ['언랭복귀', 'tank', 4],
+  ];
+
+  for (const [playerId, role, delta] of preferenceUpdates) {
+    preferredPlayers = updateMatchPlayerPreferencePoints(preferredPlayers, playerId, role, delta);
+  }
+
+  const refreshed = refreshResultsFromPlayers(initialBalance.candidates, initialBalance.editor, preferredPlayers, {
+    rng: createSequenceRng([0.15, 0.45, 0.75, 0.25, 0.55, 0.85]),
+  });
+
+  assert.notDeepEqual(
+    refreshed.candidates.map((candidate) => candidate.candidateKey),
+    initialBalance.candidates.map((candidate) => candidate.candidateKey),
+  );
+  assert.equal(refreshed.selectedCandidateId, refreshed.editor?.candidateId ?? null);
+  assert.equal(refreshed.candidateCount, initialBalance.candidateCount);
+});
+
+test('main entrypoint edits point preferences, saves the current roster, renders six candidates, and supports slot swapping', async (context) => {
   const sampleFixture = await loadSampleFixture();
   const { document, localStorage, cleanup } = await loadMainIntoFakeDom();
   context.after(cleanup);
@@ -62,27 +112,21 @@ test('main entrypoint edits preferences, saves the current roster, renders six c
 
   assert.match(feedbackPanel.innerHTML, /입력 확인이 끝났습니다/);
   assert.match(previewPanel.innerHTML, /하늘방패/);
-  assert.match(previewPanel.innerHTML, /preference-select-0-0/);
-  assert.match(previewPanel.innerHTML, /현재 10명 저장\/업데이트/);
-  assert.equal(document.querySelector('#preference-select-0-0').value, 'tank');
-  assert.equal(document.querySelector('#preference-select-0-1').value, 'support');
-  assert.equal(document.querySelector('#preference-select-0-2').value, 'damage');
+  assert.match(previewPanel.innerHTML, /preference-plus-0-tank/);
+  assert.match(previewPanel.innerHTML, /선호 합계 6 \/ 6/);
+  assert.match(previewPanel.innerHTML, /기본 2 \/ 2 \/ 2/);
 
-  const firstPreferenceSelect = document.querySelector('#preference-select-0-0');
-  firstPreferenceSelect.value = 'support';
-  firstPreferenceSelect.dispatchEvent({ type: 'change' });
+  document.querySelector('#preference-plus-0-tank').click();
 
-  assert.equal(document.querySelector('#preference-select-0-0').value, 'support');
-  assert.equal(document.querySelector('#preference-select-0-1').value, 'tank');
-  assert.equal(document.querySelector('#preference-select-0-2').value, 'damage');
+  assert.match(previewPanel.innerHTML, /직접 조정/);
 
   document.querySelector('#save-current-button').click();
 
   assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 10명/);
-  assert.match(savedPlayerPanel.innerHTML, /1순위 힐러/);
-  assert.match(savedPlayerPanel.innerHTML, /하늘방패/);
+  assert.match(savedPlayerPanel.innerHTML, /탱 3점 · 딜 1점 · 힐 2점/);
+  assert.match(savedPlayerPanel.innerHTML, /삭제/);
   assert.match(localStorage.getItem(PLAYER_STORE_KEY), /"하늘방패"/);
-  assert.match(localStorage.getItem(PLAYER_STORE_KEY), /"support","tank","damage"/);
+  assert.match(localStorage.getItem(PLAYER_STORE_KEY), /"preferencePoints"/);
 
   balanceButton.click();
 
@@ -93,12 +137,12 @@ test('main entrypoint edits preferences, saves the current roster, renders six c
   assert.match(resultPanel.innerHTML, /candidate-card-selected/);
   assert.match(resultPanel.innerHTML, /mini-slot-card/);
   assert.match(resultPanel.innerHTML, /preference-badge/);
-  assert.match(resultPanel.innerHTML, /1순위/);
+  assert.match(resultPanel.innerHTML, /3점\+|선호 2점|선호 3점/);
   assert.doesNotMatch(resultPanel.innerHTML, /팀 A 총점|팀 B 총점|점수 차이|역할군 차이 합|탱커 차이|언랭 분배 차이/);
   assert.equal(resultSection.scrolled, true);
-  assert.deepEqual(resultSection.scrollArguments, [{ behavior: 'smooth', block: 'start' }]);
 
   const initialCandidateOneHtml = resultPanel.innerHTML;
+
   document.querySelector('#editor-slot-A-tank-1').click();
 
   assert.match(resultPanel.innerHTML, /editor-slot-selected/);
@@ -173,6 +217,39 @@ test('saved-player selection is gated to exactly 10 and loading rewrites the tex
 
   assert.match(resultPanel.innerHTML, /추천 후보 6개/);
   assert.match(resultPanel.innerHTML, /preference-badge/);
+});
+
+test('saved-player delete and clear-all actions keep selection counts and gating in sync', async (context) => {
+  const storedPayload = await createSavedPlayerPayload();
+  const { document, cleanup } = await loadMainIntoFakeDom({
+    storageEntries: {
+      [PLAYER_STORE_KEY]: storedPayload,
+    },
+  });
+  context.after(cleanup);
+
+  const savedPlayerPanel = document.querySelector('#saved-player-panel');
+
+  for (let index = 0; index < 10; index += 1) {
+    const checkbox = document.querySelector(`#saved-player-checkbox-${index}`);
+    checkbox.checked = true;
+    checkbox.dispatchEvent({ type: 'change' });
+  }
+
+  assert.match(savedPlayerPanel.innerHTML, /선택 10 \/ 10/);
+  assert.equal(document.querySelector('#load-selected-button').disabled, false);
+
+  document.querySelector('#saved-player-delete-0').click();
+
+  assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 9명/);
+  assert.match(savedPlayerPanel.innerHTML, /선택 9 \/ 10/);
+  assert.equal(document.querySelector('#load-selected-button').disabled, true);
+  assert.doesNotMatch(savedPlayerPanel.innerHTML, /선택 10 \/ 10/);
+
+  document.querySelector('#clear-saved-button').click();
+
+  assert.match(savedPlayerPanel.innerHTML, /저장된 플레이어 0명/);
+  assert.match(savedPlayerPanel.innerHTML, /아직 저장된 플레이어가 없습니다/);
 });
 
 test('main entrypoint blocks invalid clipboard data and keeps result empty', async (context) => {

@@ -1,9 +1,10 @@
 import { ROLE_ORDER } from '../config/gameConfig.js';
 import { normalizePlayerId } from './playerIdentity.js';
-import { normalizePreferenceOrder, resolvePreferenceOrder } from './preferences.js';
+import { normalizePreferencePoints, resolvePreferencePoints } from './preferences.js';
 
-export const PLAYER_STORE_KEY = 'team-builder.saved-players.v1';
-export const PLAYER_STORE_VERSION = 1;
+export const PLAYER_STORE_KEY = 'team-builder.saved-players.v2';
+export const LEGACY_PLAYER_STORE_KEY = 'team-builder.saved-players.v1';
+export const PLAYER_STORE_VERSION = 2;
 
 function getDefaultStorage() {
   try {
@@ -35,6 +36,16 @@ function cloneRoleMap(roles) {
   }, {});
 }
 
+function parseStorePayload(rawValue) {
+  const parsed = JSON.parse(rawValue);
+  const rawRecords = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.players) ? parsed.players : [];
+
+  return {
+    parsed,
+    rawRecords,
+  };
+}
+
 function normalizeSavedPlayerRecord(record) {
   const name = `${record?.name ?? ''}`.trim();
 
@@ -52,7 +63,7 @@ function normalizeSavedPlayerRecord(record) {
     id: normalizePlayerId(name),
     name,
     roles,
-    preferenceOrder: normalizePreferenceOrder(record.preferenceOrder, resolvePreferenceOrder({ roles })),
+    preferencePoints: resolvePreferencePoints(record, record.preferencePoints, record.preferenceOrder),
   };
 }
 
@@ -61,7 +72,7 @@ function toSerializableRecord(record) {
     id: record.id ?? normalizePlayerId(record.name),
     name: record.name,
     roles: cloneRoleMap(record.roles),
-    preferenceOrder: normalizePreferenceOrder(record.preferenceOrder, resolvePreferenceOrder(record)),
+    preferencePoints: normalizePreferencePoints(record.preferencePoints),
   };
 }
 
@@ -69,12 +80,28 @@ function sortRecords(records) {
   return [...records].sort((left, right) => left.name.localeCompare(right.name, 'ko'));
 }
 
+function buildStorageUnavailableResult(warning) {
+  return {
+    records: [],
+    storageAvailable: false,
+    warning,
+  };
+}
+
+function persistRecords(records, storage) {
+  if (records.length === 0) {
+    return clearSavedPlayerStore(storage);
+  }
+
+  return savePlayerStore(records, storage);
+}
+
 export function createSavedPlayerRecord(player) {
   return normalizeSavedPlayerRecord({
     id: normalizePlayerId(player.name),
     name: player.name,
     roles: player.roles,
-    preferenceOrder: resolvePreferenceOrder(player),
+    preferencePoints: resolvePreferencePoints(player),
   });
 }
 
@@ -96,54 +123,71 @@ export function upsertSavedPlayerRecords(existingRecords, players) {
 
 export function loadPlayerStore(storage = getDefaultStorage()) {
   if (!storage || typeof storage.getItem !== 'function') {
-    return {
-      records: [],
-      storageAvailable: false,
-      warning: '이 환경에서는 저장된 플레이어 기능을 사용할 수 없습니다.',
-    };
+    return buildStorageUnavailableResult('이 환경에서는 저장된 플레이어 기능을 사용할 수 없습니다.');
   }
 
-  let rawValue = null;
+  let latestRawValue = null;
+  let legacyRawValue = null;
 
   try {
-    rawValue = storage.getItem(PLAYER_STORE_KEY);
+    latestRawValue = storage.getItem(PLAYER_STORE_KEY);
+    legacyRawValue = storage.getItem(LEGACY_PLAYER_STORE_KEY);
   } catch {
-    return {
-      records: [],
-      storageAvailable: false,
-      warning: '브라우저 저장소에 접근할 수 없어 저장된 플레이어를 불러오지 못했습니다.',
-    };
+    return buildStorageUnavailableResult('브라우저 저장소에 접근할 수 없어 저장된 플레이어를 불러오지 못했습니다.');
   }
 
-  if (!rawValue) {
-    return {
-      records: [],
-      storageAvailable: true,
-      warning: '',
-    };
+  const loadTargets = [
+    {
+      key: PLAYER_STORE_KEY,
+      rawValue: latestRawValue,
+      isLegacy: false,
+    },
+    {
+      key: LEGACY_PLAYER_STORE_KEY,
+      rawValue: legacyRawValue,
+      isLegacy: true,
+    },
+  ];
+  let sawUnreadablePayload = false;
+
+  for (const target of loadTargets) {
+    if (!target.rawValue) {
+      continue;
+    }
+
+    try {
+      const { parsed, rawRecords } = parseStorePayload(target.rawValue);
+      const records = sortRecords(rawRecords.map(normalizeSavedPlayerRecord).filter(Boolean));
+      const usedLegacyFormat =
+        target.isLegacy ||
+        parsed?.version !== PLAYER_STORE_VERSION ||
+        rawRecords.some((record) => Array.isArray(record?.preferenceOrder));
+
+      return {
+        records,
+        storageAvailable: true,
+        warning: usedLegacyFormat
+          ? '예전 형식의 저장 데이터를 읽었습니다. 다시 저장하거나 삭제하면 최신 6점 선호 형식으로 정리됩니다.'
+          : '',
+      };
+    } catch {
+      sawUnreadablePayload = true;
+    }
   }
 
-  try {
-    const parsed = JSON.parse(rawValue);
-    const rawRecords = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.players) ? parsed.players : [];
-    const records = sortRecords(rawRecords.map(normalizeSavedPlayerRecord).filter(Boolean));
-    const warning =
-      parsed?.version && parsed.version !== PLAYER_STORE_VERSION
-        ? '예전 형식의 저장 데이터를 읽었습니다. 다시 저장하면 최신 형식으로 정리됩니다.'
-        : '';
-
-    return {
-      records,
-      storageAvailable: true,
-      warning,
-    };
-  } catch {
+  if (sawUnreadablePayload) {
     return {
       records: [],
       storageAvailable: true,
       warning: '저장된 플레이어 데이터를 읽지 못해 비운 상태로 시작했습니다.',
     };
   }
+
+  return {
+    records: [],
+    storageAvailable: true,
+    warning: '',
+  };
 }
 
 export function savePlayerStore(records, storage = getDefaultStorage()) {
@@ -165,6 +209,10 @@ export function savePlayerStore(records, storage = getDefaultStorage()) {
         players: serializableRecords,
       }),
     );
+
+    if (typeof storage.removeItem === 'function') {
+      storage.removeItem(LEGACY_PLAYER_STORE_KEY);
+    }
 
     return {
       success: true,
@@ -190,4 +238,43 @@ export function saveCurrentPlayersToStore(existingRecords, players, storage = ge
     storageAvailable: persistence.storageAvailable,
     warning: persistence.warning,
   };
+}
+
+export function deleteSavedPlayerRecord(existingRecords, playerId, storage = getDefaultStorage()) {
+  const records = sortRecords(existingRecords.filter((record) => record.id !== playerId));
+  const persistence = persistRecords(records, storage);
+
+  return {
+    records,
+    success: persistence.success,
+    storageAvailable: persistence.storageAvailable,
+    warning: persistence.warning,
+  };
+}
+
+export function clearSavedPlayerStore(storage = getDefaultStorage()) {
+  if (!storage || typeof storage.removeItem !== 'function') {
+    return {
+      success: false,
+      storageAvailable: false,
+      warning: '이 환경에서는 저장된 플레이어 기능을 사용할 수 없습니다.',
+    };
+  }
+
+  try {
+    storage.removeItem(PLAYER_STORE_KEY);
+    storage.removeItem(LEGACY_PLAYER_STORE_KEY);
+
+    return {
+      success: true,
+      storageAvailable: true,
+      warning: '',
+    };
+  } catch {
+    return {
+      success: false,
+      storageAvailable: false,
+      warning: '브라우저 저장소에서 저장된 플레이어를 삭제하지 못했습니다.',
+    };
+  }
 }

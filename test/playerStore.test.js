@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  LEGACY_PLAYER_STORE_KEY,
   PLAYER_STORE_KEY,
+  clearSavedPlayerStore,
   createSavedPlayerRecord,
+  deleteSavedPlayerRecord,
   loadPlayerStore,
   saveCurrentPlayersToStore,
   savePlayerStore,
@@ -40,7 +43,7 @@ function tier(key, description, score) {
   };
 }
 
-function makePlayer(name, preferenceOrder = ['tank', 'damage', 'support']) {
+function makePlayer(name, preferencePoints = { tank: 2, damage: 2, support: 2 }) {
   return {
     id: name.trim().toLowerCase(),
     name,
@@ -50,7 +53,7 @@ function makePlayer(name, preferenceOrder = ['tank', 'damage', 'support']) {
       damage: tier('gold', '골드', 3),
       support: tier('master', '마스터', 6),
     },
-    preferenceOrder,
+    preferencePoints,
     preferenceSource: 'manual',
   };
 }
@@ -75,25 +78,85 @@ test('loadPlayerStore falls back safely when saved JSON is corrupted', () => {
   assert.match(loaded.warning, /읽지 못해 비운 상태로 시작했습니다/);
 });
 
-test('upsertSavedPlayerRecords updates an existing record by normalized player name', () => {
-  const existing = [createSavedPlayerRecord(makePlayer('테스터', ['tank', 'damage', 'support']))];
-  const updated = upsertSavedPlayerRecords(existing, [makePlayer('  테스터  ', ['support', 'tank', 'damage'])]);
+test('loadPlayerStore migrates legacy preferenceOrder payloads from the v1 key', () => {
+  const storage = createMemoryStorage({
+    [LEGACY_PLAYER_STORE_KEY]: JSON.stringify({
+      version: 1,
+      players: [
+        {
+          id: 'legacy-player',
+          name: '레거시',
+          roles: {
+            tank: tier('diamond', '다이아', 5),
+            damage: tier('gold', '골드', 3),
+            support: tier('master', '마스터', 6),
+          },
+          preferenceOrder: ['support', 'tank', 'damage'],
+        },
+      ],
+    }),
+  });
+  const loaded = loadPlayerStore(storage);
 
-  assert.equal(updated.length, 1);
-  assert.deepEqual(updated[0].preferenceOrder, ['support', 'tank', 'damage']);
+  assert.equal(loaded.records.length, 1);
+  assert.deepEqual(loaded.records[0].preferencePoints, {
+    tank: 2,
+    damage: 1,
+    support: 3,
+  });
+  assert.match(loaded.warning, /예전 형식/);
 });
 
-test('saveCurrentPlayersToStore and loadPlayerStore round-trip tiers and preferences', () => {
+test('upsertSavedPlayerRecords updates an existing record by normalized player name', () => {
+  const existing = [createSavedPlayerRecord(makePlayer('테스터', { tank: 2, damage: 2, support: 2 }))];
+  const updated = upsertSavedPlayerRecords(existing, [makePlayer('  테스터  ', { tank: 4, damage: 1, support: 1 })]);
+
+  assert.equal(updated.length, 1);
+  assert.deepEqual(updated[0].preferencePoints, {
+    tank: 4,
+    damage: 1,
+    support: 1,
+  });
+});
+
+test('saveCurrentPlayersToStore and loadPlayerStore round-trip tiers and point-based preferences', () => {
   const storage = createMemoryStorage();
-  const players = [makePlayer('저장1', ['support', 'tank', 'damage']), makePlayer('저장2', ['damage', 'support', 'tank'])];
+  const players = [
+    makePlayer('저장1', { tank: 1, damage: 4, support: 1 }),
+    makePlayer('저장2', { tank: 3, damage: 1, support: 2 }),
+  ];
   const saved = saveCurrentPlayersToStore([], players, storage);
   const loaded = loadPlayerStore(storage);
 
   assert.equal(saved.success, true);
   assert.equal(saved.records.length, 2);
   assert.equal(loaded.records.length, 2);
-  assert.deepEqual(loaded.records[0].preferenceOrder, ['support', 'tank', 'damage']);
+  assert.deepEqual(loaded.records[0].preferencePoints, { tank: 1, damage: 4, support: 1 });
   assert.equal(loaded.records[1].roles.support.description, '마스터');
+});
+
+test('deleteSavedPlayerRecord removes one player and persists the new list', () => {
+  const storage = createMemoryStorage();
+  const saved = saveCurrentPlayersToStore([], [makePlayer('삭제1'), makePlayer('삭제2')], storage);
+  const deleted = deleteSavedPlayerRecord(saved.records, '삭제1'.toLowerCase(), storage);
+  const loaded = loadPlayerStore(storage);
+
+  assert.equal(deleted.success, true);
+  assert.equal(deleted.records.length, 1);
+  assert.equal(deleted.records[0].name, '삭제2');
+  assert.equal(loaded.records.length, 1);
+});
+
+test('clearSavedPlayerStore removes all saved player payloads', () => {
+  const storage = createMemoryStorage({
+    [PLAYER_STORE_KEY]: '{"version":2,"players":[]}',
+    [LEGACY_PLAYER_STORE_KEY]: '{"version":1,"players":[]}',
+  });
+  const cleared = clearSavedPlayerStore(storage);
+
+  assert.equal(cleared.success, true);
+  assert.equal(storage.getItem(PLAYER_STORE_KEY), null);
+  assert.equal(storage.getItem(LEGACY_PLAYER_STORE_KEY), null);
 });
 
 test('savePlayerStore writes the versioned wrapper payload', () => {
@@ -103,6 +166,6 @@ test('savePlayerStore writes the versioned wrapper payload', () => {
   const rawPayload = storage.getItem(PLAYER_STORE_KEY);
 
   assert.equal(result.success, true);
-  assert.match(rawPayload, /"version":1/);
-  assert.match(rawPayload, /"players"/);
+  assert.match(rawPayload, /"version":2/);
+  assert.match(rawPayload, /"preferencePoints"/);
 });

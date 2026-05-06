@@ -49,9 +49,15 @@ test('preference and saved-player UI styles are present for the new workflow', a
   const styles = await loadStyles();
 
   assert.match(styles, /\.saved-player-list(?:\s*,|\s*\{)/);
+  assert.match(styles, /\.saved-player-row\s*\{/);
+  assert.match(styles, /\.saved-toolbar-actions\s*\{/);
   assert.match(styles, /\.roster-list\s*\{/);
-  assert.match(styles, /\.preference-control\s*\{/);
+  assert.match(styles, /\.preference-stepper\s*\{/);
+  assert.match(styles, /\.stepper-button\s*\{/);
+  assert.match(styles, /\.danger-button\s*\{/);
+  assert.match(styles, /\.preference-badge-0\s*\{/);
   assert.match(styles, /\.preference-badge-1\s*\{/);
   assert.match(styles, /\.preference-badge-2\s*\{/);
   assert.match(styles, /\.preference-badge-3\s*\{/);
+  assert.match(styles, /\.preference-badge-6\s*\{/);
 });

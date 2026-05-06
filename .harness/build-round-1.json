@@ -1,53 +1,43 @@
 {
-  "summary": "Implemented the Team Builder round with canonical `matchPlayers` state, editable role preferences, localStorage-backed saved-player save/load, and preference-rank badges in both candidate previews and the swap editor while keeping the existing 6-candidate and two-click swap flow. `npm test` and `npm run build` pass; optional browser smoke could not be run here because no Chromium-family binary is installed.",
+  "summary": "Shipped the round-1 builder pass for Team Builder by migrating role preference handling to the required 6-point distribution model, simplifying saved-player management, preserving the 6-candidate/team-swap flow, refreshing docs, and regenerating the static bundle.",
   "completed_work": [
-    "Added `src/lib/preferences.js` for default preference derivation, unique-order normalization, rank metadata, and summary helpers.",
-    "Added `src/lib/playerStore.js` and refactored `src/main.js`/`src/lib/appFlow.js` so pasted players and saved-player loads both hydrate the canonical current-match state.",
-    "Extended optimizer/editor data so candidates and editable slots carry preference rank badges and those badges recalculate after candidate selection, preference edits, and slot swaps.",
-    "Reworked the UI in `src/lib/render.js` and `src/styles.css` to support Korean-first roster preference editing, saved-player selection/loading, compact candidate summaries, and hidden numeric-score surfaces.",
-    "Expanded the fake DOM harness plus automated tests to cover preference logic, player-store persistence, exact-10 saved-player loading, ranking preservation, swap recalculation, and the new UI workflow.",
-    "Updated `README.md` and `FINAL_OUTPUT.md` with setup, usage, verification steps, and the documented non-blocking browser/mobile smoke gap."
+    "Replaced the old ranked-role preference model with `preferencePoints` across runtime state, candidate/editor metadata, and saved-player persistence, with default `2/2/2` handling and legacy `preferenceOrder -> 3/2/1` migration.",
+    "Updated the roster UI to Korean point steppers for `탱커 / 딜러 / 힐러`, guaranteed integer totals of 6 at all times, and refreshed candidate/editor badges to show assigned-role preference points instead of rank labels.",
+    "Simplified the saved-player library into a name-first list with exact-10 load gating, per-row delete, clear-all delete, selection reconciliation, and canonical TSV reload/reset behavior.",
+    "Refreshed automated coverage for point normalization, legacy storage migration, save/load/delete flows, swap recalculation, responsive contracts, and fake DOM rerender cleanup.",
+    "Updated `README.md` and `FINAL_OUTPUT.md` to match the shipped 6-point workflow and documented the non-blocking browser/mobile smoke gap for this iteration.",
+    "Regenerated `dist/` from the current source with the updated frontend behavior."
   ],
   "verification": [
     {
       "command": "npm test",
-      "result": "Passed. Node test suite reported 8/8 passing test files."
+      "result": "Passed. All 8 test files succeeded."
+    },
+    {
+      "command": "node --test test/editor.test.js",
+      "result": "Passed while validating the updated point-based swap/editor expectations."
     },
     {
       "command": "npm run build",
-      "result": "Passed. Rebuilt the static bundle into `dist/`."
-    },
-    {
-      "command": "for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do printf '%s: ' \"$name\"; command -v \"$name\" || true; done",
-      "result": "No Chromium-family browser binary was available in this sandbox, so `npm run test:browser` was not runnable here."
-    },
-    {
-      "command": "rg -n \"Final Edit|compact preview|TANK|DPS|SUP|역할 선호도, 저장 기능, 다른 게임 확장은 이번 범위에서 제외했습니다\" src README.md FINAL_OUTPUT.md",
-      "result": "No matches. The remaining checked UI/docs copy for those legacy strings was removed."
+      "result": "Passed. Static bundle regenerated in `dist/`."
     }
   ],
   "known_gaps": [
-    "`npm run test:browser` remains unverified in this sandbox because no Chromium/Chrome/Edge binary is installed.",
-    "Saved-player persistence is intentionally browser-local (`localStorage`) only; there is no export/import or cross-device sync in this iteration."
+    "`npm run test:browser` was not executed in this round, so real browser/mobile smoke evidence is still absent. The current spec marks that gap as non-blocking."
   ],
   "handoff_notes": [
-    "`dist/` is already rebuilt from the current `src/` state and is ready for static hosting review.",
-    "QA should exercise the saved-player flow by checking that `선택한 10명 불러오기` stays disabled until exactly 10 saved players are checked, then confirm the textarea is rewritten with the canonical header TSV.",
-    "The pre-existing dirty `.harness/spec.md` and `.harness/plan.json` files were left untouched."
+    "Saved-player persistence now reads the new `team-builder.saved-players.v2` payload first and falls back to legacy `v1` data when present.",
+    "Candidate ordering still follows the required balance rules only; preference points are display/edit metadata and do not act as a ranking key.",
+    "`dist/` reflects the latest source changes from the successful build run."
   ],
   "files_of_interest": [
-    "src/main.js",
-    "src/lib/appFlow.js",
-    "src/lib/optimizer.js",
-    "src/lib/editor.js",
-    "src/lib/render.js",
     "src/lib/preferences.js",
     "src/lib/playerStore.js",
-    "src/styles.css",
-    "testing/fakeDom.js",
+    "src/lib/render.js",
+    "src/main.js",
     "test/appFlow.test.js",
     "test/playerStore.test.js",
-    "test/preferences.test.js",
+    "testing/fakeDom.js",
     "README.md",
     "FINAL_OUTPUT.md"
   ],

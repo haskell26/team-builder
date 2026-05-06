@@ -6,21 +6,62 @@ export const PREFERENCE_SOURCES = {
   manual: 'manual',
 };
 
-export function deriveDefaultPreferenceOrder(playerOrRoles) {
-  const roles = playerOrRoles?.roles ?? playerOrRoles ?? {};
+export const PREFERENCE_POINT_TOTAL = 6;
+export const DEFAULT_PREFERENCE_POINTS = Object.freeze({
+  tank: 2,
+  damage: 2,
+  support: 2,
+});
 
-  return [...ROLE_ORDER].sort((left, right) => {
-    const scoreDifference = (roles[right]?.score ?? -1) - (roles[left]?.score ?? -1);
-
-    if (scoreDifference !== 0) {
-      return scoreDifference;
-    }
-
-    return ROLE_ORDER.indexOf(left) - ROLE_ORDER.indexOf(right);
-  });
+function hasExplicitPointValue(preferencePoints) {
+  return ROLE_ORDER.some((role) => preferencePoints?.[role] !== undefined && preferencePoints?.[role] !== null);
 }
 
-export function normalizePreferenceOrder(preferenceOrder, fallbackOrder = ROLE_ORDER) {
+function sanitizePreferencePointValue(value, fallback = 0) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return Math.max(0, Math.trunc(fallback));
+  }
+
+  return Math.max(0, Math.trunc(numericValue));
+}
+
+function rebalancePreferencePointSubset(points, roles, total) {
+  const nextPoints = {
+    ...points,
+  };
+  let currentTotal = roles.reduce((sum, role) => sum + nextPoints[role], 0);
+
+  while (currentTotal > total) {
+    const roleToReduce = [...roles]
+      .sort(
+        (left, right) =>
+          nextPoints[right] - nextPoints[left] || ROLE_ORDER.indexOf(left) - ROLE_ORDER.indexOf(right),
+      )
+      .find((role) => nextPoints[role] > 0);
+
+    if (!roleToReduce) {
+      break;
+    }
+
+    nextPoints[roleToReduce] -= 1;
+    currentTotal -= 1;
+  }
+
+  while (currentTotal < total) {
+    const roleToIncrease = [...roles].sort(
+      (left, right) => nextPoints[left] - nextPoints[right] || ROLE_ORDER.indexOf(left) - ROLE_ORDER.indexOf(right),
+    )[0];
+
+    nextPoints[roleToIncrease] += 1;
+    currentTotal += 1;
+  }
+
+  return nextPoints;
+}
+
+function normalizeLegacyPreferenceOrder(preferenceOrder) {
   const nextOrder = [];
 
   for (const role of preferenceOrder ?? []) {
@@ -29,12 +70,6 @@ export function normalizePreferenceOrder(preferenceOrder, fallbackOrder = ROLE_O
     }
 
     nextOrder.push(role);
-  }
-
-  for (const role of fallbackOrder ?? []) {
-    if (ROLE_ORDER.includes(role) && !nextOrder.includes(role)) {
-      nextOrder.push(role);
-    }
   }
 
   for (const role of ROLE_ORDER) {
@@ -46,75 +81,139 @@ export function normalizePreferenceOrder(preferenceOrder, fallbackOrder = ROLE_O
   return nextOrder.slice(0, ROLE_ORDER.length);
 }
 
-export function resolvePreferenceOrder(player, explicitPreferenceOrder) {
-  const fallbackOrder = deriveDefaultPreferenceOrder(player);
-  return normalizePreferenceOrder(explicitPreferenceOrder ?? player?.preferenceOrder ?? [], fallbackOrder);
+function getPreferenceFitBucket(assignedPreferencePoints) {
+  if (assignedPreferencePoints >= 3) {
+    return 'high';
+  }
+
+  if (assignedPreferencePoints === 2) {
+    return 'balanced';
+  }
+
+  if (assignedPreferencePoints === 1) {
+    return 'low';
+  }
+
+  return 'zero';
 }
 
-export function updatePreferenceOrder(preferenceOrder, rankIndex, nextRole, fallbackOrder = ROLE_ORDER) {
-  const baseOrder = normalizePreferenceOrder(preferenceOrder, fallbackOrder);
-  const normalizedRole = ROLE_ORDER.includes(nextRole) ? nextRole : baseOrder[rankIndex] ?? fallbackOrder[rankIndex];
-  const reordered = baseOrder.filter((role) => role !== normalizedRole);
-
-  reordered.splice(rankIndex, 0, normalizedRole);
-  return normalizePreferenceOrder(reordered, baseOrder);
-}
-
-export function getPreferenceRank(preferenceOrder, role) {
-  const order = normalizePreferenceOrder(preferenceOrder);
-  const rankIndex = order.indexOf(role);
-
-  return rankIndex >= 0 ? rankIndex + 1 : null;
-}
-
-export function getPreferenceLabel(preferenceRank) {
-  return preferenceRank ? `${preferenceRank}순위` : '선호 외';
-}
-
-export function getPreferenceMeta(preferenceOrder, role) {
-  const order = normalizePreferenceOrder(preferenceOrder);
-  const preferenceRank = getPreferenceRank(order, role);
-
+export function createDefaultPreferencePoints() {
   return {
-    preferenceOrder: order,
-    preferenceRank,
-    preferenceLabel: getPreferenceLabel(preferenceRank),
-    preferenceFitKey: preferenceRank ? `rank-${preferenceRank}` : 'out-of-order',
+    tank: DEFAULT_PREFERENCE_POINTS.tank,
+    damage: DEFAULT_PREFERENCE_POINTS.damage,
+    support: DEFAULT_PREFERENCE_POINTS.support,
   };
 }
 
-export function summarizePreferenceRanks(items) {
+export function normalizePreferencePoints(preferencePoints, fallbackPoints = DEFAULT_PREFERENCE_POINTS) {
+  const useExplicitPoints = hasExplicitPointValue(preferencePoints);
+
+  const nextPoints = ROLE_ORDER.reduce((points, role) => {
+    const fallbackValue = useExplicitPoints
+      ? 0
+      : sanitizePreferencePointValue(fallbackPoints?.[role], DEFAULT_PREFERENCE_POINTS[role]);
+
+    points[role] = sanitizePreferencePointValue(preferencePoints?.[role], fallbackValue);
+    return points;
+  }, {});
+
+  return rebalancePreferencePointSubset(nextPoints, ROLE_ORDER, PREFERENCE_POINT_TOTAL);
+}
+
+export function clonePreferencePoints(preferencePoints) {
+  return normalizePreferencePoints(preferencePoints);
+}
+
+export function migratePreferenceOrderToPoints(preferenceOrder) {
+  if (!Array.isArray(preferenceOrder) || preferenceOrder.length === 0) {
+    return createDefaultPreferencePoints();
+  }
+
+  const normalizedOrder = normalizeLegacyPreferenceOrder(preferenceOrder);
+  const migratedPoints = ROLE_ORDER.reduce((points, role) => {
+    points[role] = 0;
+    return points;
+  }, {});
+
+  migratedPoints[normalizedOrder[0]] = 3;
+  migratedPoints[normalizedOrder[1]] = 2;
+  migratedPoints[normalizedOrder[2]] = 1;
+
+  return migratedPoints;
+}
+
+export function resolvePreferencePoints(player, explicitPreferencePoints, legacyPreferenceOrder) {
+  if (hasExplicitPointValue(explicitPreferencePoints)) {
+    return normalizePreferencePoints(explicitPreferencePoints);
+  }
+
+  if (hasExplicitPointValue(player?.preferencePoints)) {
+    return normalizePreferencePoints(player.preferencePoints);
+  }
+
+  const orderToMigrate = legacyPreferenceOrder ?? player?.preferenceOrder;
+
+  if (Array.isArray(orderToMigrate) && orderToMigrate.length > 0) {
+    return migratePreferenceOrderToPoints(orderToMigrate);
+  }
+
+  return createDefaultPreferencePoints();
+}
+
+export function setPreferencePointsValue(preferencePoints, role, nextValue) {
+  const normalizedRole = ROLE_ORDER.includes(role) ? role : ROLE_ORDER[0];
+  const basePoints = normalizePreferencePoints(preferencePoints);
+  const clampedValue = Math.min(PREFERENCE_POINT_TOTAL, sanitizePreferencePointValue(nextValue));
+  const otherRoles = ROLE_ORDER.filter((currentRole) => currentRole !== normalizedRole);
+  const nextPoints = {
+    ...basePoints,
+    [normalizedRole]: clampedValue,
+  };
+  const rebalanced = rebalancePreferencePointSubset(
+    nextPoints,
+    otherRoles,
+    PREFERENCE_POINT_TOTAL - clampedValue,
+  );
+
+  return normalizePreferencePoints(rebalanced, basePoints);
+}
+
+export function adjustPreferencePoints(preferencePoints, role, delta) {
+  const basePoints = normalizePreferencePoints(preferencePoints);
+  return setPreferencePointsValue(basePoints, role, basePoints[role] + delta);
+}
+
+export function getPreferenceMeta(preferencePoints, role) {
+  const normalizedPoints = normalizePreferencePoints(preferencePoints);
+  const assignedPreferencePoints = normalizedPoints[role] ?? 0;
+
+  return {
+    preferencePoints: normalizedPoints,
+    assignedPreferencePoints,
+    preferenceLabel: `선호 ${assignedPreferencePoints}점`,
+    preferenceFitKey: `points-${assignedPreferencePoints}`,
+    preferenceFitBucket: getPreferenceFitBucket(assignedPreferencePoints),
+  };
+}
+
+export function summarizePreferenceFits(items) {
   const summary = {
-    rank1: 0,
-    rank2: 0,
-    rank3: 0,
-    other: 0,
+    high: 0,
+    balanced: 0,
+    low: 0,
+    zero: 0,
   };
 
   for (const item of items) {
-    if (item.preferenceRank === 1) {
-      summary.rank1 += 1;
-      continue;
-    }
-
-    if (item.preferenceRank === 2) {
-      summary.rank2 += 1;
-      continue;
-    }
-
-    if (item.preferenceRank === 3) {
-      summary.rank3 += 1;
-      continue;
-    }
-
-    summary.other += 1;
+    const bucket = getPreferenceFitBucket(item.assignedPreferencePoints ?? 0);
+    summary[bucket] += 1;
   }
 
   return summary;
 }
 
-export function formatPreferenceSummary(preferenceOrder) {
-  return normalizePreferenceOrder(preferenceOrder)
-    .map((role, index) => `${index + 1}순위 ${getRoleConfig(role).label}`)
-    .join(' · ');
+export function formatPreferencePointsSummary(preferencePoints) {
+  const normalizedPoints = normalizePreferencePoints(preferencePoints);
+
+  return ROLE_ORDER.map((role) => `${getRoleConfig(role).shortLabel} ${normalizedPoints[role]}점`).join(' · ');
 }

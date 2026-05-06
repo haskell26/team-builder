@@ -1,6 +1,6 @@
 import { ROLE_ORDER, getRoleConfig } from '../config/gameConfig.js';
 import { getPlayerId } from './playerIdentity.js';
-import { getPreferenceMeta, resolvePreferenceOrder, summarizePreferenceRanks } from './preferences.js';
+import { getPreferenceMeta, resolvePreferencePoints, summarizePreferenceFits } from './preferences.js';
 
 const SLOT_ORDER = ['tank', 'damage', 'damage', 'support', 'support'];
 
@@ -23,10 +23,26 @@ function buildPlayerLookup(players) {
   return Object.fromEntries(players.map((player) => [getPlayerId(player), player]));
 }
 
+function getRoleSortIndex(role) {
+  return ROLE_ORDER.indexOf(role);
+}
+
+function sortAssignments(assignments) {
+  return [...assignments].sort((left, right) => {
+    const roleIndexDifference = getRoleSortIndex(left.assignedRole) - getRoleSortIndex(right.assignedRole);
+
+    if (roleIndexDifference !== 0) {
+      return roleIndexDifference;
+    }
+
+    return left.playerName.localeCompare(right.playerName, 'ko');
+  });
+}
+
 function createAssignment(player, role) {
   const tier = player.roles[role];
   const roleConfig = getRoleConfig(role);
-  const preferenceMeta = getPreferenceMeta(resolvePreferenceOrder(player), role);
+  const preferenceMeta = getPreferenceMeta(resolvePreferencePoints(player), role);
 
   return {
     playerId: getPlayerId(player),
@@ -39,8 +55,8 @@ function createAssignment(player, role) {
     tierDescription: tier.description,
     score: tier.score,
     isUnranked: tier.isUnranked,
-    preferenceOrder: preferenceMeta.preferenceOrder,
-    preferenceRank: preferenceMeta.preferenceRank,
+    preferencePoints: preferenceMeta.preferencePoints,
+    assignedPreferencePoints: preferenceMeta.assignedPreferencePoints,
     preferenceLabel: preferenceMeta.preferenceLabel,
     preferenceFitKey: preferenceMeta.preferenceFitKey,
   };
@@ -72,44 +88,22 @@ function buildTeamSlots(assignments, teamId, teamLabel) {
       score: assignment.score,
       isUnranked: assignment.isUnranked,
       sourceRow: assignment.sourceRow,
-      preferenceOrder: assignment.preferenceOrder,
-      preferenceRank: assignment.preferenceRank,
+      preferencePoints: assignment.preferencePoints,
+      assignedPreferencePoints: assignment.assignedPreferencePoints,
       preferenceLabel: assignment.preferenceLabel,
       preferenceFitKey: assignment.preferenceFitKey,
     };
   });
 }
 
-function getRoleSortIndex(role) {
-  return ROLE_ORDER.indexOf(role);
-}
-
 function buildTeamKey(assignments) {
-  return [...assignments]
-    .sort((left, right) => {
-      const roleIndexDifference = getRoleSortIndex(left.assignedRole) - getRoleSortIndex(right.assignedRole);
-
-      if (roleIndexDifference !== 0) {
-        return roleIndexDifference;
-      }
-
-      return left.playerName.localeCompare(right.playerName, 'ko');
-    })
+  return sortAssignments(assignments)
     .map((assignment) => `${assignment.assignedRole}:${assignment.playerName}:${assignment.tierKey}:${assignment.score}`)
     .join('|');
 }
 
 function buildTeamSummary(rawAssignments, id, label) {
-  const assignments = [...rawAssignments].sort((left, right) => {
-    const roleIndexDifference = getRoleSortIndex(left.assignedRole) - getRoleSortIndex(right.assignedRole);
-
-    if (roleIndexDifference !== 0) {
-      return roleIndexDifference;
-    }
-
-    return left.playerName.localeCompare(right.playerName, 'ko');
-  });
-
+  const assignments = sortAssignments(rawAssignments);
   const totalScore = assignments.reduce((sum, assignment) => sum + assignment.score, 0);
   const unrankedCount = assignments.filter((assignment) => assignment.isUnranked).length;
   const roleTotals = ROLE_ORDER.reduce((totals, role) => {
@@ -127,42 +121,76 @@ function buildTeamSummary(rawAssignments, id, label) {
     totalScore,
     unrankedCount,
     roleTotals,
-    preferenceSummary: summarizePreferenceRanks(assignments),
+    preferenceSummary: summarizePreferenceFits(assignments),
+  };
+}
+
+function buildPreferenceSignal(assignments) {
+  const totalAssignedPreferencePoints = assignments.reduce(
+    (sum, assignment) => sum + assignment.assignedPreferencePoints,
+    0,
+  );
+  const tankAssignedPreferencePoints = assignments
+    .filter((assignment) => assignment.assignedRole === 'tank')
+    .reduce((sum, assignment) => sum + assignment.assignedPreferencePoints, 0);
+  const highPreferenceAssignments = assignments.filter((assignment) => assignment.assignedPreferencePoints >= 3).length;
+  const balancedPreferenceAssignments = assignments.filter(
+    (assignment) => assignment.assignedPreferencePoints === 2,
+  ).length;
+  const lowPreferenceAssignments = assignments.filter((assignment) => assignment.assignedPreferencePoints === 1).length;
+  const zeroPreferenceAssignments = assignments.filter((assignment) => assignment.assignedPreferencePoints === 0).length;
+  const selectionWeight = Math.max(
+    1,
+    1 +
+      totalAssignedPreferencePoints * 6 +
+      tankAssignedPreferencePoints * 3 +
+      highPreferenceAssignments * 2 +
+      balancedPreferenceAssignments -
+      zeroPreferenceAssignments * 2,
+  );
+
+  return {
+    totalAssignedPreferencePoints,
+    tankAssignedPreferencePoints,
+    highPreferenceAssignments,
+    balancedPreferenceAssignments,
+    lowPreferenceAssignments,
+    zeroPreferenceAssignments,
+    selectionWeight,
   };
 }
 
 function createCandidate(teamOneAssignments, teamTwoAssignments) {
-  const firstTeamKey = buildTeamKey(teamOneAssignments);
-  const secondTeamKey = buildTeamKey(teamTwoAssignments);
-  const orderedAssignments =
-    firstTeamKey.localeCompare(secondTeamKey, 'ko') <= 0
-      ? [teamOneAssignments, teamTwoAssignments]
-      : [teamTwoAssignments, teamOneAssignments];
-
-  const teams = orderedAssignments.map((assignments, index) =>
-    buildTeamSummary(assignments, index === 0 ? 'A' : 'B', `팀 ${index === 0 ? 'A' : 'B'}`),
-  );
-  const comparisonKey = teams.map((team) => buildTeamKey(team.assignments)).join('||');
+  const teams = [
+    buildTeamSummary(teamOneAssignments, 'A', '팀 A'),
+    buildTeamSummary(teamTwoAssignments, 'B', '팀 B'),
+  ];
+  const scoreDifference = Math.abs(teams[0].totalScore - teams[1].totalScore);
   const roleScoreDifferences = ROLE_ORDER.reduce((differences, role) => {
     differences[role] = Math.abs(teams[0].roleTotals[role] - teams[1].roleTotals[role]);
     return differences;
   }, {});
-  const scoreDifference = Math.abs(teams[0].totalScore - teams[1].totalScore);
   const roleScoreDifferenceSum = ROLE_ORDER.reduce((sum, role) => sum + roleScoreDifferences[role], 0);
   const tankScoreDifference = roleScoreDifferences.tank;
   const unrankedDifference = Math.abs(teams[0].unrankedCount - teams[1].unrankedCount);
+  const comparisonKey = [buildTeamKey(teams[0].assignments), buildTeamKey(teams[1].assignments)]
+    .sort((left, right) => left.localeCompare(right, 'ko'))
+    .join('||');
+  const allAssignments = teams.flatMap((team) => team.assignments);
 
   return {
     id: comparisonKey,
+    candidateKey: comparisonKey,
+    comparisonKey,
+    rank: 0,
     teams,
     scoreDifference,
     roleScoreDifferences,
     roleScoreDifferenceSum,
     tankScoreDifference,
     unrankedDifference,
-    candidateKey: comparisonKey,
-    comparisonKey,
-    preferenceSummary: summarizePreferenceRanks(teams.flatMap((team) => team.assignments)),
+    preferenceSummary: summarizePreferenceFits(allAssignments),
+    preferenceSignal: buildPreferenceSignal(allAssignments),
   };
 }
 
@@ -191,7 +219,8 @@ export function hydrateCandidateWithPlayers(candidate, players) {
   return {
     ...candidate,
     teams,
-    preferenceSummary: summarizePreferenceRanks(teams.flatMap((team) => team.assignments)),
+    preferenceSummary: summarizePreferenceFits(teams.flatMap((team) => team.assignments)),
+    preferenceSignal: buildPreferenceSignal(teams.flatMap((team) => team.assignments)),
   };
 }
 
@@ -269,7 +298,7 @@ export function enumerateValidAssignments(players) {
   return [...candidates.values()];
 }
 
-function shuffleCandidates(candidates, rng) {
+function shuffleCandidatesUniform(candidates, rng) {
   const shuffled = [...candidates];
 
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
@@ -277,6 +306,56 @@ function shuffleCandidates(candidates, rng) {
     const current = shuffled[index];
     shuffled[index] = shuffled[swapIndex];
     shuffled[swapIndex] = current;
+  }
+
+  return shuffled;
+}
+
+function getCandidateSelectionWeight(candidate) {
+  return Math.max(1, candidate.preferenceSignal?.selectionWeight ?? 1);
+}
+
+function hasPreferenceWeightDivergence(candidates) {
+  if (candidates.length < 2) {
+    return false;
+  }
+
+  const firstWeight = getCandidateSelectionWeight(candidates[0]);
+
+  return candidates.some((candidate) => getCandidateSelectionWeight(candidate) !== firstWeight);
+}
+
+function selectWeightedCandidateIndex(candidates, rng) {
+  const totalWeight = candidates.reduce((sum, candidate) => sum + getCandidateSelectionWeight(candidate), 0);
+
+  if (totalWeight <= 0) {
+    return Math.floor(rng() * candidates.length);
+  }
+
+  let remainingWeight = rng() * totalWeight;
+
+  for (let index = 0; index < candidates.length; index += 1) {
+    remainingWeight -= getCandidateSelectionWeight(candidates[index]);
+
+    if (remainingWeight < 0) {
+      return index;
+    }
+  }
+
+  return candidates.length - 1;
+}
+
+function shuffleCandidates(candidates, rng) {
+  if (!hasPreferenceWeightDivergence(candidates)) {
+    return shuffleCandidatesUniform(candidates, rng);
+  }
+
+  const remaining = [...candidates];
+  const shuffled = [];
+
+  while (remaining.length > 0) {
+    const selectedIndex = selectWeightedCandidateIndex(remaining, rng);
+    shuffled.push(remaining.splice(selectedIndex, 1)[0]);
   }
 
   return shuffled;

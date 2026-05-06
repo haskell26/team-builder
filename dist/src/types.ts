@@ -1,6 +1,29 @@
 export type Role = 'tank' | 'damage' | 'support';
 export type PreferenceSource = 'default' | 'saved' | 'manual';
 
+export interface PreferencePoints {
+  tank: number;
+  damage: number;
+  support: number;
+}
+
+export interface PreferenceFitSummary {
+  high: number;
+  balanced: number;
+  low: number;
+  zero: number;
+}
+
+export interface CandidatePreferenceSignal {
+  totalAssignedPreferencePoints: number;
+  tankAssignedPreferencePoints: number;
+  highPreferenceAssignments: number;
+  balancedPreferenceAssignments: number;
+  lowPreferenceAssignments: number;
+  zeroPreferenceAssignments: number;
+  selectionWeight: number;
+}
+
 export interface PlayerInput {
   name: string;
   tankTier: string;
@@ -26,7 +49,7 @@ export interface NormalizedPlayer {
 }
 
 export interface MatchPlayer extends NormalizedPlayer {
-  preferenceOrder: Role[];
+  preferencePoints: PreferencePoints;
   preferenceSource: PreferenceSource;
 }
 
@@ -34,7 +57,7 @@ export interface SavedPlayerRecord {
   id: string;
   name: string;
   roles: Record<Role, TierSnapshot>;
-  preferenceOrder: Role[];
+  preferencePoints: PreferencePoints;
 }
 
 export interface TeamAssignment {
@@ -48,8 +71,8 @@ export interface TeamAssignment {
   tierDescription: string;
   score: number;
   isUnranked: boolean;
-  preferenceOrder: Role[];
-  preferenceRank: number | null;
+  preferencePoints: PreferencePoints;
+  assignedPreferencePoints: number;
   preferenceLabel: string;
   preferenceFitKey: string;
 }
@@ -70,8 +93,8 @@ export interface TeamSlot {
   tierDescription: string;
   score: number;
   isUnranked: boolean;
-  preferenceOrder: Role[];
-  preferenceRank: number | null;
+  preferencePoints: PreferencePoints;
+  assignedPreferencePoints: number;
   preferenceLabel: string;
   preferenceFitKey: string;
 }
@@ -84,12 +107,7 @@ export interface TeamSummary {
   totalScore: number;
   unrankedCount: number;
   roleTotals: Record<Role, number>;
-  preferenceSummary: {
-    rank1: number;
-    rank2: number;
-    rank3: number;
-    other: number;
-  };
+  preferenceSummary: PreferenceFitSummary;
 }
 
 export interface BalanceCandidate {
@@ -103,6 +121,8 @@ export interface BalanceCandidate {
   roleScoreDifferenceSum: number;
   tankScoreDifference: number;
   unrankedDifference: number;
+  preferenceSummary: PreferenceFitSummary;
+  preferenceSignal: CandidatePreferenceSignal;
 }
 
 export interface BalanceResult extends BalanceCandidate {

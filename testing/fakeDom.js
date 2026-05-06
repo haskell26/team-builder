@@ -31,6 +31,7 @@ class FakeElement {
     this.scrolled = false;
     this.scrollArguments = [];
     this._innerHTML = '';
+    this.registeredChildIds = new Set();
   }
 
   get innerHTML() {
@@ -38,8 +39,9 @@ class FakeElement {
   }
 
   set innerHTML(value) {
+    this.ownerDocument.unregisterElements(this.registeredChildIds);
     this._innerHTML = value;
-    this.ownerDocument.registerMarkup(value);
+    this.registeredChildIds = this.ownerDocument.registerMarkup(value);
   }
 
   addEventListener(type, listener) {
@@ -98,10 +100,24 @@ class FakeDocument {
 
   registerMarkup(markup) {
     const matches = markup.matchAll(/id="([^"]+)"/g);
+    const registeredIds = new Set();
 
     for (const match of matches) {
       const id = match[1];
       this.registerElement(new FakeElement(id, this));
+      registeredIds.add(id);
+    }
+
+    return registeredIds;
+  }
+
+  unregisterElements(elementIds) {
+    for (const id of elementIds) {
+      if (id === 'app') {
+        continue;
+      }
+
+      this.elements.delete(id);
     }
   }
 

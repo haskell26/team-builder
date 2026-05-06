@@ -1,5 +1,5 @@
 import { ROLE_ORDER } from '../config/gameConfig.js';
-import { getPreferenceMeta, resolvePreferenceOrder, summarizePreferenceRanks } from './preferences.js';
+import { getPreferenceMeta, resolvePreferencePoints, summarizePreferenceFits } from './preferences.js';
 
 function cloneTierSnapshot(tier) {
   return {
@@ -26,7 +26,7 @@ function clonePlayerPool(players) {
       {
         ...player,
         roles: cloneRoleMap(player.roles),
-        preferenceOrder: resolvePreferenceOrder(player),
+        preferencePoints: resolvePreferencePoints(player),
       },
     ]),
   );
@@ -40,7 +40,7 @@ function hydrateSlot(slot, playerPool) {
   }
 
   const tier = player.roles[slot.role];
-  const preferenceMeta = getPreferenceMeta(player.preferenceOrder, slot.role);
+  const preferenceMeta = getPreferenceMeta(player.preferencePoints, slot.role);
 
   return {
     ...slot,
@@ -51,8 +51,8 @@ function hydrateSlot(slot, playerPool) {
     tierDescription: tier.description,
     score: tier.score,
     isUnranked: tier.isUnranked,
-    preferenceOrder: preferenceMeta.preferenceOrder,
-    preferenceRank: preferenceMeta.preferenceRank,
+    preferencePoints: preferenceMeta.preferencePoints,
+    assignedPreferencePoints: preferenceMeta.assignedPreferencePoints,
     preferenceLabel: preferenceMeta.preferenceLabel,
     preferenceFitKey: preferenceMeta.preferenceFitKey,
   };
@@ -74,8 +74,8 @@ function createAssignment(slot) {
     tierDescription: slot.tierDescription,
     score: slot.score,
     isUnranked: slot.isUnranked,
-    preferenceOrder: slot.preferenceOrder,
-    preferenceRank: slot.preferenceRank,
+    preferencePoints: slot.preferencePoints,
+    assignedPreferencePoints: slot.assignedPreferencePoints,
     preferenceLabel: slot.preferenceLabel,
     preferenceFitKey: slot.preferenceFitKey,
   };
@@ -108,14 +108,12 @@ function hydrateTeam(team, playerPool) {
     totalScore,
     unrankedCount,
     roleTotals,
-    preferenceSummary: summarizePreferenceRanks(slots),
+    preferenceSummary: summarizePreferenceFits(slots),
   };
 }
 
 function mapSlotIds(editor) {
-  return Object.fromEntries(
-    editor.teams.flatMap((team) => team.slots.map((slot) => [slot.id, slot])),
-  );
+  return Object.fromEntries(editor.teams.flatMap((team) => team.slots.map((slot) => [slot.id, slot])));
 }
 
 export function createEditableCandidate(candidate, players) {

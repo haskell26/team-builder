@@ -1,6 +1,6 @@
 import { UI_COPY, SAMPLE_FORMAT_LINES } from '../constants/copy.js';
 import { ROLE_ORDER, getRoleConfig, getTierGuideRows } from '../config/gameConfig.js';
-import { formatPreferenceSummary } from './preferences.js';
+import { PREFERENCE_POINT_TOTAL, formatPreferencePointsSummary } from './preferences.js';
 
 function escapeHtml(value) {
   return `${value}`
@@ -17,14 +17,14 @@ function getTierClassName(tierKey) {
 
 function getPreferenceSourceLabel(preferenceSource) {
   if (preferenceSource === 'manual') {
-    return '직접 수정';
+    return '직접 조정';
   }
 
   if (preferenceSource === 'saved') {
     return '저장 불러옴';
   }
 
-  return '자동 추천';
+  return '기본 2 / 2 / 2';
 }
 
 function renderRoleBadge(role, { compact = false } = {}) {
@@ -35,10 +35,10 @@ function renderRoleBadge(role, { compact = false } = {}) {
   )}</span>`;
 }
 
-function renderPreferenceBadge(preferenceRank, { compact = false } = {}) {
-  const label = preferenceRank ? `${preferenceRank}순위` : '선호 외';
+function renderPreferenceBadge(assignedPreferencePoints, { compact = false } = {}) {
+  const label = compact ? `${assignedPreferencePoints}점` : `선호 ${assignedPreferencePoints}점`;
 
-  return `<span class="preference-badge preference-badge-${preferenceRank ?? 'other'} ${
+  return `<span class="preference-badge preference-badge-${assignedPreferencePoints} ${
     compact ? 'preference-badge-compact' : ''
   }">${escapeHtml(label)}</span>`;
 }
@@ -67,21 +67,38 @@ function renderRoleTierSummary(roles) {
   ).join('');
 }
 
-function renderPreferenceSelect(playerIndex, rankIndex, selectedRole) {
-  const options = ROLE_ORDER.map((role) => {
-    const roleConfig = getRoleConfig(role);
-    return `<option value="${escapeHtml(role)}"${role === selectedRole ? ' selected' : ''}>${escapeHtml(
-      roleConfig.label,
-    )}</option>`;
-  }).join('');
+function renderSavedRoleLine(roles) {
+  return ROLE_ORDER.map((role) => `${getRoleConfig(role).shortLabel} ${roles[role].description}`).join(' · ');
+}
+
+function renderPreferenceStepper(playerIndex, role, points) {
+  const roleConfig = getRoleConfig(role);
 
   return `
-    <label class="preference-control" for="preference-select-${playerIndex}-${rankIndex}">
-      <span>${rankIndex + 1}순위</span>
-      <select id="preference-select-${playerIndex}-${rankIndex}" class="preference-select">
-        ${options}
-      </select>
-    </label>
+    <div class="preference-stepper">
+      <span class="preference-stepper-label">${escapeHtml(roleConfig.label)}</span>
+      <div class="preference-stepper-controls">
+        <button
+          id="preference-minus-${playerIndex}-${role}"
+          class="stepper-button"
+          type="button"
+          ${points === 0 ? 'disabled' : ''}
+          aria-label="${escapeHtml(roleConfig.label)} 선호 점수 낮추기"
+        >
+          -
+        </button>
+        <strong class="preference-stepper-value">${points}점</strong>
+        <button
+          id="preference-plus-${playerIndex}-${role}"
+          class="stepper-button"
+          type="button"
+          ${points === PREFERENCE_POINT_TOTAL ? 'disabled' : ''}
+          aria-label="${escapeHtml(roleConfig.label)} 선호 점수 높이기"
+        >
+          +
+        </button>
+      </div>
+    </div>
   `;
 }
 
@@ -91,7 +108,7 @@ function renderRosterPlayer(player, index) {
       <div class="roster-card-header">
         <div>
           <h3 class="roster-card-name">${escapeHtml(player.name)}</h3>
-          <p class="roster-card-meta">역할 선호도는 후보 카드와 편집 슬롯의 순위 배지에 즉시 반영됩니다.</p>
+          <p class="roster-card-meta">탱커 / 딜러 / 힐러에 총 6점을 나눕니다. 한 역할을 올리면 나머지 두 역할이 자동 조정됩니다.</p>
         </div>
         <span class="source-pill">${escapeHtml(getPreferenceSourceLabel(player.preferenceSource))}</span>
       </div>
@@ -100,8 +117,10 @@ function renderRosterPlayer(player, index) {
         ${renderRoleTierSummary(player.roles)}
       </div>
 
+      <p class="preference-total">선호 합계 ${PREFERENCE_POINT_TOTAL} / ${PREFERENCE_POINT_TOTAL} · 티어 밸런스를 뒤집지 않는 soft signal</p>
+
       <div class="preference-controls">
-        ${player.preferenceOrder.map((role, rankIndex) => renderPreferenceSelect(index, rankIndex, role)).join('')}
+        ${ROLE_ORDER.map((role) => renderPreferenceStepper(index, role, player.preferencePoints[role])).join('')}
       </div>
     </article>
   `;
@@ -109,23 +128,24 @@ function renderRosterPlayer(player, index) {
 
 function renderSavedPlayer(record, index, selectedIds) {
   return `
-    <label class="saved-player-card" for="saved-player-checkbox-${index}">
-      <input
-        id="saved-player-checkbox-${index}"
-        class="saved-player-checkbox"
-        type="checkbox"
-        ${selectedIds.has(record.id) ? 'checked' : ''}
-      />
-      <div class="saved-player-body">
-        <div class="saved-player-header">
-          <h3 class="saved-player-name">${escapeHtml(record.name)}</h3>
-          <span class="saved-player-preference">${escapeHtml(formatPreferenceSummary(record.preferenceOrder))}</span>
-        </div>
-        <div class="role-tier-row">
-          ${renderRoleTierSummary(record.roles)}
-        </div>
+    <article class="saved-player-row">
+      <div class="saved-player-main">
+        <label class="saved-player-pick" for="saved-player-checkbox-${index}">
+          <input
+            id="saved-player-checkbox-${index}"
+            class="saved-player-checkbox"
+            type="checkbox"
+            ${selectedIds.has(record.id) ? 'checked' : ''}
+          />
+          <span class="saved-player-name">${escapeHtml(record.name)}</span>
+        </label>
+        <p class="saved-player-secondary">${escapeHtml(renderSavedRoleLine(record.roles))}</p>
+        <p class="saved-player-secondary">${escapeHtml(formatPreferencePointsSummary(record.preferencePoints))}</p>
       </div>
-    </label>
+      <button id="saved-player-delete-${index}" class="ghost-button danger-button saved-player-delete" type="button">
+        삭제
+      </button>
+    </article>
   `;
 }
 
@@ -140,10 +160,10 @@ function renderSavedPanelMessage(message, type) {
 function renderPreferenceSummary(summary) {
   return `
     <div class="preference-summary-row">
-      <span>1순위 ${summary.rank1}</span>
-      <span>2순위 ${summary.rank2}</span>
-      <span>3순위 ${summary.rank3}</span>
-      ${summary.other > 0 ? `<span>선호 외 ${summary.other}</span>` : ''}
+      <span>3점+ ${summary.high}</span>
+      <span>2점 ${summary.balanced}</span>
+      ${summary.low > 0 ? `<span>1점 ${summary.low}</span>` : ''}
+      ${summary.zero > 0 ? `<span>0점 ${summary.zero}</span>` : ''}
     </div>
   `;
 }
@@ -153,7 +173,7 @@ function renderMiniSlot(slot) {
     <div class="mini-slot-card">
       <div class="mini-slot-top">
         ${renderRoleBadge(slot.role, { compact: true })}
-        ${renderPreferenceBadge(slot.preferenceRank, { compact: true })}
+        ${renderPreferenceBadge(slot.assignedPreferencePoints, { compact: true })}
       </div>
       <strong class="mini-slot-name tier-fill ${getTierClassName(slot.tierKey)}">${escapeHtml(slot.playerName)}</strong>
       <div class="mini-slot-bottom">
@@ -190,7 +210,7 @@ function renderEditorSlot(slot, selectedSlotId) {
           ${renderRoleBadge(slot.role)}
           <span class="editor-slot-label">${escapeHtml(slot.teamLabel)} ${slot.slotIndex}</span>
         </div>
-        ${renderPreferenceBadge(slot.preferenceRank)}
+        ${renderPreferenceBadge(slot.assignedPreferencePoints)}
       </div>
       <strong class="editor-slot-name tier-fill ${getTierClassName(slot.tierKey)}">${escapeHtml(slot.playerName)}</strong>
       <p class="editor-slot-tier">${escapeHtml(slot.tierDescription)}</p>
@@ -350,7 +370,7 @@ export function renderFeedback(errors, hasText, hasValidPlayers, hasResult) {
   }
 
   if (hasValidPlayers) {
-    return '<p class="feedback-success">입력 확인이 끝났습니다. 아래에서 역할 선호도를 조정하거나 현재 10명을 저장한 뒤 팀 나누기를 눌러 주세요.</p>';
+    return '<p class="feedback-success">입력 확인이 끝났습니다. 아래에서 탱커 / 딜러 / 힐러 6점 분배를 조정하거나 현재 10명을 저장한 뒤 팀 나누기를 눌러 주세요.</p>';
   }
 
   return '<p class="feedback-neutral">입력 대기 중입니다.</p>';
@@ -368,9 +388,16 @@ export function renderSavedPlayers(records, { selectedIds, canLoadSelected, stor
         <strong class="saved-toolbar-title">저장된 플레이어 ${records.length}명</strong>
         <p class="saved-toolbar-meta">선택 ${selectedCount} / 10</p>
       </div>
-      <button id="load-selected-button" class="primary-button" type="button" ${canLoadSelected ? '' : 'disabled'}>
-        선택한 10명 불러오기
-      </button>
+      <div class="saved-toolbar-actions">
+        <button id="clear-saved-button" class="ghost-button danger-button" type="button" ${
+          records.length > 0 && storageAvailable ? '' : 'disabled'
+        }>
+          전체 삭제
+        </button>
+        <button id="load-selected-button" class="primary-button" type="button" ${canLoadSelected ? '' : 'disabled'}>
+          선택한 10명 불러오기
+        </button>
+      </div>
     </div>
 
     <p class="saved-toolbar-hint">${escapeHtml(saveSupportHint)}</p>
@@ -390,7 +417,7 @@ export function renderSavedPlayers(records, { selectedIds, canLoadSelected, stor
 export function renderPreview(players, { canSaveCurrentRoster, storageAvailable }) {
   const buttonDisabled = canSaveCurrentRoster && storageAvailable ? '' : 'disabled';
   const toolbarHint = storageAvailable
-    ? '선호도 순서는 중복 없이 유지되며, 저장하면 다음 매치에서도 다시 불러올 수 있습니다.'
+    ? '각 플레이어는 탱커 / 딜러 / 힐러에 총 6점을 나눕니다. 선호 점수는 티어 밸런스를 뒤집지 않지만, 같은 밸런스 후보 안에서는 더 잘 맞는 조합을 앞쪽에 보여줄 수 있습니다.'
     : '현재 환경에서는 브라우저 저장소를 사용할 수 없어 저장 버튼이 비활성화됩니다.';
 
   return `

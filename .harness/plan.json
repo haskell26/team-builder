@@ -1,130 +1,134 @@
 {
   "project_name": "Team Builder",
-  "summary": "Extend the existing vanilla-JS frontend baseline instead of rebuilding it. The workspace already supports clipboard parsing, 6 compact candidate previews, candidate selection, and two-click swap editing. This iteration should preserve that behavior, add editable per-player role preferences, localStorage-backed saved player records and exact-10 loading, and surface preference-fit metadata without exposing numeric scores. The older real-browser/mobile smoke gap stays documented but is non-blocking for this round.",
+  "summary": "Extend the existing vanilla-JS static frontend instead of rebuilding it. Preserve clipboard parsing, 6-candidate compact previews, candidate selection, and two-click swap editing. Replace the old role-preference order model with a per-player `6점 분배` model, migrate saved data safely, simplify the saved-player library to a name-first exact-10 selector with delete actions, and keep balance-score numbers hidden while preserving the mandated candidate ranking order.",
   "milestones": [
     {
-      "title": "Canonical Match State",
-      "objective": "Refactor the app so a structured current-match roster, not raw textarea text alone, becomes the source of truth for preferences, saved-player hydration, candidate generation, and editor loading.",
+      "title": "Preference Model Migration",
+      "objective": "Convert the runtime and persistence model from ranked role order to integer role-preference points while keeping the current 10-player balance flow intact.",
       "deliverables": [
-        "Extend `src/types.ts` with explicit shapes for `preferenceOrder`, `preferenceSource`, `MatchPlayer`, and `SavedPlayerRecord` so the data model is stable before UI work starts.",
-        "Add a small helper module such as `src/lib/preferences.js` for default-order derivation, unique-order normalization, and assigned-role-to-preference-rank calculation.",
-        "Add `src/lib/playerStore.js` as a versioned `localStorage` wrapper with safe JSON parsing, empty-store fallback, and upsert-by-normalized-name behavior.",
-        "Refactor `src/main.js` and `src/lib/appFlow.js` so `matchPlayers` is the canonical state; textarea paste and saved-player load both hydrate that array, and balance/editor flows read it directly instead of reparsing raw text during every interaction.",
-        "Keep `src/lib/parseClipboard.js` behavior unchanged for the existing 4-column TSV format with optional header support; when a pasted name already exists in storage, hydrate saved preference order but keep pasted tier values as the current-match truth."
+        "Update `src/types.ts` so `MatchPlayer`, `SavedPlayerRecord`, slot metadata, and helper types use `preferencePoints: { tank, damage, support }` instead of `preferenceOrder`.",
+        "Replace order-based helpers in `src/lib/preferences.js` with point-based helpers: default `2/2/2`, integer clamping, sum-to-6 normalization, legacy order-to-points migration, and assigned-role fit metadata generation.",
+        "Refactor `src/lib/appFlow.js` so pasted players, loaded saved players, candidate hydration, and editor refresh all read/write `preferencePoints` as part of canonical `matchPlayers` state.",
+        "Keep clipboard parsing in `src/lib/parseClipboard.js` at the existing 4-column TSV shape with optional header support; role-preference points remain UI-managed state, not pasted input columns.",
+        "Introduce backward-compatible saved-data migration in `src/lib/playerStore.js`: load new schema first, fall back to current v1 payloads, and convert legacy `preferenceOrder` records into point distributions without crashing or dropping records."
       ]
     },
     {
-      "title": "Preference Editing Workflow",
-      "objective": "Let the user input or change each player's role preference order in a simple Korean UI without changing the clipboard format.",
+      "title": "Roster Editing UX",
+      "objective": "Give the user a simple Korean UI to adjust each active player's role-preference points while guaranteeing the three-role sum always remains 6.",
       "deliverables": [
-        "Update `src/lib/render.js`, `src/constants/copy.js`, and `src/styles.css` so the current-roster area shows the 10 active players with tier chips plus compact `1순위 / 2순위 / 3순위` role controls per row.",
-        "Use a deterministic default preference order when none exists yet: highest tier score first, with ties resolved `tank -> damage -> support`, so pasted players are immediately usable before manual edits.",
-        "Enforce unique role order in the controls through shared normalization logic; do not allow duplicate roles in the same player's preference list.",
-        "Extend candidate/editor assignment data in `src/lib/optimizer.js` and `src/lib/editor.js` with `preferenceRank` metadata so each visible slot can show `1순위`, `2순위`, or `3순위`/mismatch state for the assigned role.",
-        "Recalculate preference badges immediately after candidate selection or slot swaps, while keeping all numeric score values hidden from the main UI."
+        "Replace the current `1순위 / 2순위 / 3순위` controls in `src/lib/render.js` and `src/styles.css` with compact per-role integer controls for `탱커 / 딜러 / 힐러` in the current-roster section.",
+        "Use constrained steppers or equivalent normalized controls in `src/main.js` so each edit updates one role and rebalances the other two through shared helper logic; runtime state must never store a non-integer or a total other than 6.",
+        "Set the default preference distribution for new players to `탱커 2 / 딜러 2 / 힐러 2` unless a saved record already exists for that player.",
+        "Refresh preview, candidate metadata, and editor metadata immediately after a preference edit, while continuing to hide personal/team balance-score numbers from the main result UI.",
+        "Update Korean product copy in `src/constants/copy.js` so the roster section clearly explains that preference points are a soft signal and not a hard override of tier balance."
       ]
     },
     {
-      "title": "Saved Player Library",
-      "objective": "Persist player tiers and preferences locally and let the user assemble a match by choosing exactly 10 saved players.",
+      "title": "Saved Player Library Simplification",
+      "objective": "Keep local saved-player workflows, but simplify the browsing UI to a name-first list and add deletion management.",
       "deliverables": [
-        "Add a `현재 10명 저장/업데이트` action that persists the current valid roster into `localStorage` as reusable saved-player records.",
-        "Add a saved-player panel that renders on startup and lists stored players with name, tier summary, preference summary, and a selection checkbox.",
-        "Track saved-player selection count in app state and enable `선택한 10명 불러오기` only when exactly 10 players are checked.",
-        "When 10 saved players are loaded, rewrite the textarea with canonical TSV including a header row, hydrate `matchPlayers`, refresh the current-roster preview, and clear old candidates/editor until the user recalculates.",
-        "Update Korean UI copy so role preferences and saved players are presented as supported workflow, not as out-of-scope nice-to-have text."
+        "Refactor the saved-player panel in `src/lib/render.js` and `src/styles.css` from card-heavy layout to a simple name-centered list row with checkbox, player name, minimal secondary summary, and per-row delete action.",
+        "Extend `src/lib/playerStore.js` with individual delete and clear-all helpers, plus safe persistence after each mutation.",
+        "Update `src/main.js` state and event binding so saved-player selection count, exact-10 gating, individual deletion, and clear-all deletion stay in sync with `savedPlayerSelectionIds`.",
+        "Keep `선택한 10명 불러오기` disabled unless exactly 10 saved players are checked, and keep save/update available only when the current roster is a valid 10-player match.",
+        "When 10 saved players are loaded, repopulate the textarea with canonical TSV, hydrate `matchPlayers`, refresh the current-roster panel, and clear previous candidates/editor until the user recalculates."
       ]
     },
     {
-      "title": "Result Integration And Verification",
-      "objective": "Integrate the new metadata into the existing candidate/swap flow and lock the release with deterministic tests and docs.",
+      "title": "Candidate Integration And Verification",
+      "objective": "Preserve the existing balance engine and swap editor, but refresh all candidate/editor metadata and tests for the new preference model and saved-player behaviors.",
       "deliverables": [
-        "Preserve the current result behavior: 6 compact candidate cards, fixed `1탱 2딜 2힐` slot structure, default first-candidate selection, and two-click cross-team/cross-role swaps.",
-        "Keep the mandatory candidate ordering unchanged in `src/lib/optimizer.js`: total score difference, role-score-difference sum, tank score difference, then unranked difference; role preferences may be displayed as fit metadata but must not override that sort order.",
-        "If space allows, add a compact candidate-level preference-fit summary, but do not surface personal score, team total score, or numeric score differences anywhere in the main UI.",
-        "Extend `testing/fakeDom.js` with the minimum support needed for the new controls, especially `localStorage`, checkbox state, select/input value changes, and the related event dispatch behavior.",
-        "Add tests for preference defaults and edits, localStorage save/load/upsert, exact-10 saved-player loading, preference-rank recalculation after swaps, hidden-score UI, and unchanged parser/ranking behavior.",
-        "Run `npm test` and `npm run build` as mandatory verification. Keep `npm run test:browser` optional only when a Chromium-family browser exists, and document clearly that this round does not treat the older browser/mobile gap as a blocker.",
-        "Update `README.md` and `FINAL_OUTPUT.md` so setup, supported workflow, verification evidence, and remaining non-blocking QA gaps all match the shipped behavior."
+        "Update `src/lib/optimizer.js` and `src/lib/editor.js` so every candidate slot and editor slot carries assigned-role preference fit metadata derived from point values, not rank order.",
+        "Keep candidate ordering exactly as specified: total score difference, role-score-difference sum, tank score difference, unranked difference, then random ordering inside fully equal metric buckets.",
+        "Do not add role-preference points as a balance ranking key; use them only for slot-level fit metadata and optional compact summaries so tier balance remains the primary decision rule.",
+        "Preserve the current result behavior: exactly 6 candidate cards, compact `팀 A / 팀 B` previews, tier color styling, first-candidate auto-load, and immediate two-click swaps.",
+        "Update `testing/fakeDom.js` and the existing tests so point editing, save/load, delete flows, exact-10 gating, candidate rendering, and swap recalculation are all executable under the current test harness.",
+        "Update `README.md` and `FINAL_OUTPUT.md` to describe the point-based preference workflow, simplified saved-player list, delete actions, exact-10 loading, and the explicitly non-blocking browser/mobile verification gap for this iteration.",
+        "Run `npm test` and `npm run build` as required verification; keep `npm run test:browser` documented as optional evidence when a Chromium-family browser is available, not as a release blocker for this round."
       ]
     }
   ],
   "acceptance_criteria": [
-    "Header-present and headerless 4-column paste input both still parse correctly and keep Korean validation errors for bad input.",
-    "The current-roster view shows all 10 active players with tier presentation and editable unique `1순위 / 2순위 / 3순위` role preferences.",
-    "If a player has no stored or manually edited preference order yet, the app derives a default order from highest tier score, with ties resolved `tank -> damage -> support`.",
-    "Saving the current valid roster creates or updates localStorage records keyed by normalized player name.",
-    "Reloading the app restores the saved-player list from localStorage without any backend dependency.",
-    "The saved-player panel keeps `선택한 10명 불러오기` disabled unless exactly 10 saved players are selected.",
-    "Loading 10 saved players repopulates the textarea and current-roster preview with those exact 10 players and their saved preferences.",
-    "After valid current players exist, the app still shows exactly 6 candidate combinations.",
-    "Every candidate still satisfies `1탱 2딜 2힐` per team and does not duplicate any player within that candidate.",
-    "Candidate ordering still follows total score difference, role-score-difference sum, tank score difference, then unranked difference.",
-    "Candidate preview cards remain compact and show both `팀 A` and `팀 B` slot layouts with required tier color styling.",
-    "Candidate previews and the final editor visibly reflect each assignment's role-preference rank or mismatch state.",
-    "Selecting a candidate still loads a fresh final edit area for that candidate and clears any previous pending swap selection.",
-    "Two slot clicks still swap players immediately across teams or roles, and after the swap both tier display and preference rank are recalculated from the destination slot role.",
-    "The main UI still hides personal numeric scores, team total scores, and numeric score differences by default.",
-    "All newly added product copy for preference editing and saved players is in Korean.",
-    "`README.md` and `FINAL_OUTPUT.md` describe the preference/save workflow and state that the older browser/mobile smoke gap is non-blocking for this iteration."
+    "Header-present and headerless 4-column paste input both continue to parse correctly with Korean validation messages.",
+    "After paste or saved-player load, the current-roster section shows all 10 active players with editable integer preference controls for `탱커 / 딜러 / 힐러`.",
+    "A player with no saved preference data starts at `2 / 2 / 2`.",
+    "Every preference edit keeps each role value as an integer and the three-role total exactly `6` at all times.",
+    "Saving the current valid roster persists both tier data and preference-point data locally.",
+    "Existing saved-player payloads from the old order-based schema load without crashing and are migrated into usable point-based data.",
+    "The saved-player panel is a simple name-first list rather than a detailed card grid.",
+    "Saved players can be deleted individually from the list.",
+    "A clear-all saved-players action removes the entire local saved-player library.",
+    "After any delete action, selection counts and exact-10 gating update immediately and no deleted player remains selectable.",
+    "`선택한 10명 불러오기` stays disabled unless exactly 10 saved players are selected.",
+    "Loading 10 saved players rewrites the textarea with those exact 10 players, hydrates the current-roster section, and clears old candidate/editor results until recalculation.",
+    "After valid current players exist, the app still renders exactly 6 candidate combinations.",
+    "Every candidate still satisfies `1탱 2딜 2힐` per team and never duplicates a player within that candidate.",
+    "Candidate ordering still follows total score difference, role-score-difference sum, tank score difference, and unranked difference; only fully equal metric buckets are randomized.",
+    "Candidate preview cards remain compact and show both teams with the required tier color styling.",
+    "Selecting a candidate still loads that candidate into the final edit area and clears any pending slot selection from a previous edit.",
+    "Two slot clicks still swap players immediately, and the destination-slot tier display plus preference-fit display recalculate from the new slot role.",
+    "The main result UI still hides personal numeric scores, team total scores, and numeric balance differences by default.",
+    "All new preference, save/load, delete, and status copy is presented in Korean.",
+    "`README.md` and `FINAL_OUTPUT.md` match the shipped workflow and explicitly state that browser/mobile smoke evidence is non-blocking for this iteration."
   ],
   "test_strategy": [
-    "Add pure unit tests for the new preference helper module covering default-order derivation, duplicate-order normalization, and assigned-role-to-preference-rank mapping.",
-    "Add storage tests for the new `localStorage` wrapper covering empty state, corrupted JSON fallback, upsert-by-name updates, and round-trip persistence.",
-    "Keep optimizer tests focused on the required balance ordering and candidate uniqueness so preference metadata cannot silently change ranking behavior.",
-    "Extend editor tests so swaps assert both destination-role tier recalculation and destination-role preference-rank recalculation.",
-    "Expand the fake-DOM app-flow tests to cover preference editing, saving the current roster, restoring saved players on startup, exact-10 selection gating, loading saved players into the textarea/preview, candidate rendering, and swap behavior.",
-    "Extend style/render-contract tests for the new roster-management panels and preference badges, while keeping existing tier-color and mobile-safe layout checks.",
-    "Run `npm test` and `npm run build` before handoff; run `npm run test:browser` only if a Chromium-family browser is available, and document whether it was executed or skipped."
+    "Replace the old preference-order unit tests with point-based tests covering default `2/2/2`, integer normalization, sum-to-6 enforcement, legacy order migration, and assigned-role fit metadata.",
+    "Add storage tests for backward-compatible migration, upsert behavior, individual delete, clear-all delete, corrupted JSON fallback, and round-trip persistence of point-based records.",
+    "Keep optimizer tests focused on the mandated balance ranking and candidate uniqueness, and add a deterministic RNG stub test to prove only fully equal metric buckets are randomized.",
+    "Extend editor tests so swaps assert both destination-role tier recalculation and destination-role preference-fit recalculation under the point-based model.",
+    "Expand app-flow and fake-DOM coverage for current-roster point editing, save/update, startup restore, exact-10 gating, load-selected flow, individual delete, clear-all delete, and hidden-score rendering.",
+    "Retain parser and render-contract coverage for optional headers, tier color classes, compact previews, and Korean UI copy after the saved-player panel simplification.",
+    "Run `npm test` and `npm run build` before handoff; document `npm run test:browser` only if a compatible browser is available, otherwise mark it skipped and non-blocking."
   ],
   "risks": [
     {
-      "risk": "Textarea content, current-match roster state, and saved-player state can drift apart if the app keeps multiple competing sources of truth.",
-      "mitigation": "Make `matchPlayers` the single canonical runtime state, and route paste hydration, saved-player load, and textarea serialization through shared helper functions."
+      "risk": "Changing the saved-player schema from order-based preferences to point-based preferences can silently break existing local data or discard user intent.",
+      "mitigation": "Implement explicit backward-compatible migration in `src/lib/playerStore.js`, add unit tests for legacy payloads, and preserve old preference intent through a deterministic conversion rule instead of resetting everyone blindly."
     },
     {
-      "risk": "Role preference controls can produce invalid or duplicated role orders, which will make preference badges inconsistent.",
-      "mitigation": "Centralize preference normalization in one helper, constrain UI control options, and add unit tests for all duplicate-order edge cases."
+      "risk": "Naive numeric inputs can temporarily violate the `sum=6` rule and create inconsistent runtime state.",
+      "mitigation": "Centralize point-edit normalization in one helper and use constrained stepper-style controls or equivalent logic so the application state never stores invalid totals."
     },
     {
-      "risk": "`localStorage` can be unavailable or contain corrupted JSON, causing startup crashes in a static frontend.",
-      "mitigation": "Wrap all storage access in safe load/save helpers that fall back to an empty store and show a non-blocking Korean warning instead of throwing."
+      "risk": "Saved-player delete actions can leave stale selection IDs or mismatched UI counts after mutation.",
+      "mitigation": "Reconcile `savedPlayerSelectionIds` after every save/delete/load mutation and add app-flow tests that verify counts, disabled states, and rendered rows immediately after deletion."
     },
     {
-      "risk": "Adding preference metadata to candidates can accidentally change comparison keys or ranking behavior.",
-      "mitigation": "Keep preference fields separate from the existing balance metric comparison path and lock the required ranking order with optimizer regression tests."
+      "risk": "Preference-point work can accidentally leak new numeric balance details into compact previews or the editor, violating the hidden-score requirement.",
+      "mitigation": "Keep balance metrics internal to optimizer/editor modules and expose only qualitative or preference-specific display metadata in render functions; add regression tests that search rendered HTML for forbidden score labels."
     },
     {
-      "risk": "The compact preview area can become cluttered if preference information is rendered too aggressively.",
-      "mitigation": "Keep detailed editing controls in the current-roster and saved-player panels, and use only small badges or a short summary inside candidate cards."
+      "risk": "The builder may accidentally promote preference points into the candidate sort order, which would contradict the spec’s mandatory ranking rules.",
+      "mitigation": "Treat preference points as metadata only, keep ranking logic isolated in `compareCandidateMetrics`/`rankCandidates`, and lock the required ordering with dedicated optimizer regression tests."
     },
     {
-      "risk": "The existing fake DOM harness is too limited for checkbox, select, and storage-heavy flows, which can leave regressions untested.",
-      "mitigation": "Upgrade the fake DOM early in the implementation and keep most preference/storage logic in pure helper modules that are easy to unit test."
+      "risk": "The saved-player list simplification can remove too much context and make loading or deleting the wrong player easy.",
+      "mitigation": "Keep the row layout name-first but include one short secondary summary line or compact chips, plus clear selected-count feedback and explicit delete buttons."
     },
     {
-      "risk": "Stored tier data and newly pasted tier data for the same player may conflict and confuse the update path.",
-      "mitigation": "Adopt one explicit rule: pasted tier values win for the current match, saved preference order is reused when available, and `현재 10명 저장/업데이트` writes the latest edited values back to storage."
+      "risk": "The current fake DOM may miss interactions needed for the new control scheme, causing false confidence from partial tests.",
+      "mitigation": "Upgrade `testing/fakeDom.js` early for the chosen control events and keep core normalization/storage logic in pure helper modules that can be tested without DOM complexity."
     }
   ],
   "definition_of_done": [
-    "The existing paste, validation, 6-candidate preview, candidate selection, and two-click swap flow still works.",
-    "Users can edit per-player role preference order in-app without changing the clipboard format.",
-    "Role preference state is visible in candidate/editor assignments and updates correctly after candidate changes and swaps.",
-    "Users can save player tiers and preferences locally and later build a match by selecting exactly 10 saved players.",
-    "The required candidate ranking order and score-hidden UI rules remain intact.",
-    "The UI remains Korean-first, including all new preference and saved-player copy.",
-    "Automated tests cover preference logic, storage, saved-player loading, ranking preservation, candidate rendering, and swap recalculation, and `npm test` plus `npm run build` pass.",
-    "`README.md` and `FINAL_OUTPUT.md` accurately describe the shipped workflow and the non-blocking status of the older browser/mobile smoke gap."
+    "The existing clipboard parsing, validation, 6-candidate generation, candidate selection, and two-click swap flow still works.",
+    "Per-player role preference is now represented as editable integer points across `탱커 / 딜러 / 힐러`, with a guaranteed total of `6` and default `2 / 2 / 2`.",
+    "Candidate and editor slot metadata refresh correctly after preference edits, candidate changes, and swaps under the new point-based model.",
+    "Saved players can be saved, restored, selected in an exact-10 name-first list, deleted individually, and deleted in bulk.",
+    "The required balance ordering and hidden-score UI rules remain intact.",
+    "The product remains frontend-only and deployable as a static GitHub Pages-style bundle.",
+    "Automated tests cover migration, preference editing, saved-player deletion/load flows, ranking preservation, rendering, and swap recalculation, and both `npm test` and `npm run build` pass.",
+    "`README.md` and `FINAL_OUTPUT.md` accurately describe the shipped workflow and the non-blocking browser/mobile verification status for this iteration."
   ],
   "open_questions": [
-    "Assumption: the current compact-preview and swap-editor implementation is the baseline to extend, not something to replace wholesale.",
-    "Assumption: clipboard input stays at the existing 4 columns; role preferences are entered and edited in the app UI after paste or after loading saved players.",
-    "Assumption: default role preference order is derived from descending tier score, with ties resolved `tank -> damage -> support`.",
-    "Assumption: role preference is advisory fit metadata for candidate/editor display and manual editing, and it does not override the spec's mandatory balance sort order.",
-    "Assumption: saving the current roster upserts by normalized player name; delete/import/export management for saved players is out of scope for this iteration.",
-    "Assumption: loading saved players rewrites the textarea with a canonical header-included TSV so the visible input stays understandable to the user.",
-    "Assumption: if a pasted player already exists in storage, pasted tier values override saved tier values for the current match while saved preference order is reused unless the user edits it.",
-    "Assumption: the older real-browser/mobile QA gap remains documented but is intentionally non-blocking for this iteration unless a browser is available for optional smoke testing."
+    "Assumption: the clipboard format remains exactly the current 4-column TSV, and role-preference points are edited only in the app UI or loaded from saved local records.",
+    "Assumption: legacy saved `preferenceOrder` values should migrate to point totals using a deterministic `3 / 2 / 1` mapping so old user intent is preserved as much as possible.",
+    "Assumption: valid role-preference values are non-negative integers whose total is always exactly `6`; no fractional values or negative values are supported.",
+    "Assumption: the implementation should prefer constrained stepper-style controls or equivalent immediate normalization instead of free-form text fields that can leave the state invalid between keystrokes.",
+    "Assumption: role-preference points must not become a new candidate sort key; they are reflected through slot-level fit metadata and editing guidance, not through overriding the balance ranking.",
+    "Assumption: the simplified saved-player list may omit the old detailed tier-card layout as long as player names are easy to scan and the user can still select, load, and delete records confidently.",
+    "Assumption: deleting saved players affects only the saved library; if one of those players is already loaded into the current match, that current in-memory match remains unchanged until the user reloads or clears it.",
+    "Assumption: browser and mobile smoke verification should stay documented in `README.md` and `FINAL_OUTPUT.md`, but the absence of new real-browser evidence is not a blocker for this iteration."
   ]
 }
