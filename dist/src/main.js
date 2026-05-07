@@ -191,6 +191,8 @@ function bindCandidateButtons() {
       handleCandidateSelection(candidate.id);
     });
   });
+
+  document.querySelector('#reroll-candidates-button')?.addEventListener('click', handleRegenerateCandidates);
 }
 
 function bindEditorSlotButtons() {
@@ -234,6 +236,17 @@ function loadSavedPlayersFromStore() {
   reconcileSavedSelections();
 }
 
+function applyBalanceResults(balance) {
+  state.candidates = balance.candidates;
+  state.candidateCount = balance.candidateCount;
+  state.selectedCandidateId = balance.selectedCandidateId;
+  state.editor = balance.editor;
+}
+
+function rebuildCandidatesFromCurrentPlayers() {
+  applyBalanceResults(buildBalanceFromPlayers(state.matchPlayers));
+}
+
 function handleInputChange(nextValue) {
   state.clipboardText = nextValue;
   state.savedPanelMessage = '';
@@ -249,14 +262,18 @@ function handleBalance() {
     return;
   }
 
-  const balance = buildBalanceFromPlayers(state.matchPlayers);
-
-  state.candidates = balance.candidates;
-  state.candidateCount = balance.candidateCount;
-  state.selectedCandidateId = balance.selectedCandidateId;
-  state.editor = balance.editor;
+  rebuildCandidatesFromCurrentPlayers();
   updatePanels();
   document.querySelector('#result-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function handleRegenerateCandidates() {
+  if (state.errors.length > 0 || state.matchPlayers.length === 0) {
+    return;
+  }
+
+  rebuildCandidatesFromCurrentPlayers();
+  updateResultPanel();
 }
 
 function handleCandidateSelection(candidateId) {

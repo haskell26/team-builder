@@ -25,6 +25,15 @@ function createSequenceRng(sequence) {
   };
 }
 
+function createRollingRng(start = 0.137, step = 0.173) {
+  let value = start;
+
+  return () => {
+    value = (value + step) % 1;
+    return value;
+  };
+}
+
 function createMemoryStorage() {
   const store = new Map();
 
@@ -106,6 +115,8 @@ test('main entrypoint edits point preferences, saves the current roster, renders
   assert.ok(textarea);
   assert.ok(balanceButton);
   assert.ok(clearButton);
+  assert.match(appRoot.innerHTML, /문의나 건의사항은/);
+  assert.match(appRoot.innerHTML, /https:\/\/github\.com\/haskell26\/team-builder\/issues/);
   assert.match(feedbackPanel.innerHTML, /표를 붙여넣거나 저장된 플레이어 10명을 불러오면/);
   assert.match(savedPlayerPanel.innerHTML, /목록 펼치기/);
   assert.match(savedPlayerPanel.innerHTML, /보관함이 접혀 있습니다/);
@@ -118,8 +129,11 @@ test('main entrypoint edits point preferences, saves the current roster, renders
 
   assert.match(feedbackPanel.innerHTML, /입력 확인이 끝났습니다/);
   assert.match(previewPanel.innerHTML, /하늘방패/);
+  assert.match(previewPanel.innerHTML, /current-player-list-scroll/);
+  assert.equal((previewPanel.innerHTML.match(/current-player-row/g) ?? []).length, 10);
+  assert.doesNotMatch(previewPanel.innerHTML, /roster-card/);
   assert.match(previewPanel.innerHTML, /preference-plus-0-tank/);
-  assert.match(previewPanel.innerHTML, /선호 합계 6 \/ 6/);
+  assert.match(previewPanel.innerHTML, /preference-stepper-compact/);
   assert.match(previewPanel.innerHTML, /기본 2 \/ 2 \/ 2/);
 
   document.querySelector('#preference-plus-0-tank').click();
@@ -146,6 +160,7 @@ test('main entrypoint edits point preferences, saves the current roster, renders
 
   assert.match(feedbackPanel.innerHTML, /계산이 끝났습니다/);
   assert.match(resultPanel.innerHTML, /추천 후보 6개/);
+  assert.match(resultPanel.innerHTML, /후보 6개 다시 생성/);
   assert.match(resultPanel.innerHTML, /선택 후보 1 편집/);
   assert.match(resultPanel.innerHTML, /id="candidate-button-6"/);
   assert.match(resultPanel.innerHTML, /candidate-card-selected/);
@@ -235,6 +250,61 @@ test('saved-player selection is gated to exactly 10 and loading rewrites the tex
   assert.match(previewPanel.innerHTML, /하늘방패/);
   assert.match(previewPanel.innerHTML, /저장 불러옴/);
   assert.match(resultPanel.innerHTML, /최종 편집 영역/);
+});
+
+test('reroll rebuilds six candidates without clearing textarea, current-player rows, or saved-player selection state', async (context) => {
+  const sampleFixture = await loadSampleFixture();
+  const storedPayload = await createSavedPlayerPayload();
+  const originalRandom = Math.random;
+  Math.random = createRollingRng();
+
+  const { document, cleanup } = await loadMainIntoFakeDom({
+    storageEntries: {
+      [PLAYER_STORE_KEY]: storedPayload,
+    },
+  });
+
+  context.after(() => {
+    Math.random = originalRandom;
+    cleanup();
+  });
+
+  const textarea = document.querySelector('#clipboard-input');
+  const balanceButton = document.querySelector('#balance-button');
+  const previewPanel = document.querySelector('#preview-panel');
+  const savedPlayerPanel = document.querySelector('#saved-player-panel');
+  const resultPanel = document.querySelector('#result-content');
+
+  expandSavedPanel(document);
+  document.querySelector('#saved-player-row-body-0').click();
+  assert.match(savedPlayerPanel.innerHTML, /선택 1 \/ 10/);
+
+  textarea.value = sampleFixture;
+  textarea.dispatchEvent({ type: 'input' });
+  balanceButton.click();
+
+  const previewBeforeReroll = previewPanel.innerHTML;
+  const initialResultHtml = resultPanel.innerHTML;
+
+  assert.match(resultPanel.innerHTML, /id="reroll-candidates-button"/);
+  assert.match(resultPanel.innerHTML, /선택 후보 1 편집/);
+
+  document.querySelector('#candidate-button-2').click();
+  document.querySelector('#editor-slot-A-tank-1').click();
+  document.querySelector('#editor-slot-B-support-2').click();
+
+  assert.match(resultPanel.innerHTML, /스왑이 적용되었습니다/);
+
+  document.querySelector('#reroll-candidates-button').click();
+
+  assert.equal(textarea.value, sampleFixture);
+  assert.equal(previewPanel.innerHTML, previewBeforeReroll);
+  assert.equal((previewPanel.innerHTML.match(/current-player-row/g) ?? []).length, 10);
+  assert.match(savedPlayerPanel.innerHTML, /선택 1 \/ 10/);
+  assert.match(resultPanel.innerHTML, /선택 후보 1 편집/);
+  assert.match(resultPanel.innerHTML, /id="candidate-button-6"/);
+  assert.doesNotMatch(resultPanel.innerHTML, /스왑이 적용되었습니다/);
+  assert.notEqual(resultPanel.innerHTML, initialResultHtml);
 });
 
 test('saved-player rows toggle from the full hit area and delete stays isolated from selection state', async (context) => {

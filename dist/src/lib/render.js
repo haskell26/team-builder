@@ -75,26 +75,26 @@ function renderSavedPreferenceLine(preferencePoints) {
   return `선호 ${ROLE_ORDER.map((role) => preferencePoints[role]).join(' / ')}`;
 }
 
-function renderPreferenceStepper(playerIndex, role, points) {
+function renderPreferenceStepper(playerIndex, role, points, { compact = false } = {}) {
   const roleConfig = getRoleConfig(role);
 
   return `
-    <div class="preference-stepper">
-      <span class="preference-stepper-label">${escapeHtml(roleConfig.label)}</span>
+    <div class="preference-stepper ${compact ? 'preference-stepper-compact' : ''}">
+      <span class="preference-stepper-label">${escapeHtml(compact ? roleConfig.shortLabel : roleConfig.label)}</span>
       <div class="preference-stepper-controls">
         <button
           id="preference-minus-${playerIndex}-${role}"
-          class="stepper-button"
+          class="stepper-button ${compact ? 'stepper-button-compact' : ''}"
           type="button"
           ${points === 0 ? 'disabled' : ''}
           aria-label="${escapeHtml(roleConfig.label)} 선호 점수 낮추기"
         >
           -
         </button>
-        <strong class="preference-stepper-value">${points}점</strong>
+        <strong class="preference-stepper-value ${compact ? 'preference-stepper-value-compact' : ''}">${points}점</strong>
         <button
           id="preference-plus-${playerIndex}-${role}"
-          class="stepper-button"
+          class="stepper-button ${compact ? 'stepper-button-compact' : ''}"
           type="button"
           ${points === PREFERENCE_POINT_TOTAL ? 'disabled' : ''}
           aria-label="${escapeHtml(roleConfig.label)} 선호 점수 높이기"
@@ -106,25 +106,20 @@ function renderPreferenceStepper(playerIndex, role, points) {
   `;
 }
 
-function renderRosterPlayer(player, index) {
+function renderCurrentPlayerRow(player, index) {
   return `
-    <article class="roster-card">
-      <div class="roster-card-header">
-        <div>
-          <h3 class="roster-card-name">${escapeHtml(player.name)}</h3>
-          <p class="roster-card-meta">탱커 / 딜러 / 힐러에 총 6점을 나눕니다. 한 역할을 올리면 나머지 두 역할이 자동 조정됩니다.</p>
+    <article class="current-player-row">
+      <div class="current-player-summary">
+        <div class="current-player-header">
+          <strong class="current-player-name">${escapeHtml(player.name)}</strong>
+          <span class="source-pill source-pill-compact">${escapeHtml(getPreferenceSourceLabel(player.preferenceSource))}</span>
         </div>
-        <span class="source-pill">${escapeHtml(getPreferenceSourceLabel(player.preferenceSource))}</span>
+        <div class="role-tier-row current-player-tier-row">
+          ${renderRoleTierSummary(player.roles)}
+        </div>
       </div>
-
-      <div class="role-tier-row">
-        ${renderRoleTierSummary(player.roles)}
-      </div>
-
-      <p class="preference-total">선호 합계 ${PREFERENCE_POINT_TOTAL} / ${PREFERENCE_POINT_TOTAL} · 티어 밸런스를 뒤집지 않는 soft signal</p>
-
-      <div class="preference-controls">
-        ${ROLE_ORDER.map((role) => renderPreferenceStepper(index, role, player.preferencePoints[role])).join('')}
+      <div class="current-player-preferences" aria-label="${escapeHtml(player.name)} 선호 점수 조정">
+        ${ROLE_ORDER.map((role) => renderPreferenceStepper(index, role, player.preferencePoints[role], { compact: true })).join('')}
       </div>
     </article>
   `;
@@ -288,6 +283,13 @@ export function renderShell() {
             <strong>1탱 2딜 2힐</strong>
           </div>
         </div>
+        <p class="hero-support-note">
+          ${escapeHtml(UI_COPY.inquiryPrefix)}
+          <a class="inline-link" href="https://github.com/haskell26/team-builder/issues" target="_blank" rel="noreferrer">
+            ${escapeHtml(UI_COPY.inquiryLinkLabel)}
+          </a>
+          ${escapeHtml(UI_COPY.inquirySuffix)}
+        </p>
       </header>
 
       <main class="workspace-stack">
@@ -470,7 +472,7 @@ export function renderSavedPlayers(
 export function renderPreview(players, { canSaveCurrentRoster, storageAvailable }) {
   const buttonDisabled = canSaveCurrentRoster && storageAvailable ? '' : 'disabled';
   const toolbarHint = storageAvailable
-    ? '각 플레이어는 탱커 / 딜러 / 힐러에 총 6점을 나눕니다. 선호 점수는 티어 밸런스를 뒤집지 않지만, 같은 밸런스 후보 안에서는 더 잘 맞는 조합을 앞쪽에 보여줄 수 있습니다.'
+    ? UI_COPY.previewToolbarHint
     : '현재 환경에서는 브라우저 저장소를 사용할 수 없어 저장 버튼이 비활성화됩니다.';
 
   return `
@@ -487,7 +489,11 @@ export function renderPreview(players, { canSaveCurrentRoster, storageAvailable 
     ${
       players.length === 0
         ? `<div class="empty-state">${escapeHtml(UI_COPY.emptyPreview)}</div>`
-        : `<div class="roster-list">${players.map(renderRosterPlayer).join('')}</div>`
+        : `
+            <div class="current-player-list-scroll">
+              <div class="current-player-list">${players.map(renderCurrentPlayerRow).join('')}</div>
+            </div>
+          `
     }
   `;
 }
@@ -499,10 +505,17 @@ export function renderResult({ candidateCount, candidates = [], selectedCandidat
 
   return `
     <section class="candidate-section">
-      <div class="section-heading result-subsection">
-        <h3>추천 후보 6개</h3>
-        <p>전체 ${candidateCount.toLocaleString('ko-KR')}개 조합 중 빠르게 비교하기 좋은 상위 후보만 보여줍니다.</p>
-      </div>
+      <header class="result-toolbar">
+        <div class="section-heading result-subsection">
+          <h3>추천 후보 6개</h3>
+          <p>${escapeHtml(UI_COPY.resultToolbarPrefix)} ${candidateCount.toLocaleString('ko-KR')}${escapeHtml(
+            UI_COPY.resultToolbarSuffix,
+          )}</p>
+        </div>
+        <button id="reroll-candidates-button" class="ghost-button result-reroll-button" type="button">
+          ${escapeHtml(UI_COPY.resultRerollButton)}
+        </button>
+      </header>
       <div class="candidate-list">
         ${candidates.map((candidate, index) => renderCandidateCard(candidate, index, selectedCandidateId)).join('')}
       </div>

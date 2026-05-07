@@ -1,132 +1,124 @@
 {
   "project_name": "Team Builder",
-  "summary": "Use the existing static vanilla-JS app as the baseline. Round 4 is a focused UX/layout pass: keep clipboard parsing, 6-candidate generation, preference-point behavior, save/load, and swap editing intact, but move the saved-player loader into a separate side area, add a collapsed-by-default toggle, compress each saved player into a one-line row, and make the full row hit area selectable without reintroducing numeric score UI.",
+  "summary": "Round 5 should stay on the existing static vanilla-JS app and preserve clipboard parsing, saved-player sidebar, 6-candidate generation, candidate ranking, hidden internal balance scores, and click-to-swap editing. The new scope is a focused UX pass: compress the current 10-player + preference area into dense row-based summaries, add a visible one-click reroll for the 6 candidate cards without clearing current inputs, and surface a natural GitHub issue contact path in the main UI and docs.",
   "milestones": [
     {
-      "title": "Sidebar Layout Refactor",
-      "objective": "Reposition the saved-player loader so it no longer extends vertically under the main input flow, and add collapsed-by-default panel state without disturbing the rest of the app shell.",
+      "title": "Compact Current Match Panel",
+      "objective": "Replace the tall per-player preview cards with a dense, row-first current-roster view that still supports per-player 6-point preference editing and quick comparison.",
       "deliverables": [
-        "Refactor `src/lib/render.js` `renderShell()` so the top workspace becomes a two-column layout on desktop: left column for paste/input controls, right column for the saved-player loader and supporting sidebar content.",
-        "Move the saved-player section out of the current full-width position below the main grid and into the sidebar area, while keeping `preview` and `result` panels in the main flow below.",
-        "Add `savedPanelExpanded` state to `src/main.js`, default it to `false` on first render, and wire a toggle control that expands/collapses the saved-player body without affecting current roster or results state.",
-        "Update `src/constants/copy.js` with Korean labels and helper text for the new folded/unfolded UI, including a compact header summary when the panel is collapsed.",
-        "Update `src/styles.css` with explicit sidebar layout classes, collapsed/expanded panel styling, and a responsive fallback that stacks the sidebar below the input area on narrower widths without changing the default collapsed behavior."
+        "Refactor `src/lib/render.js` `renderPreview()` and the current per-player renderer so the `현재 10명 확인 및 선호 점수` section renders 10 compact `current-player-row` style items instead of tall `roster-card` blocks.",
+        "Each current-player row must show, in one glance, the player name, preference source state (`기본 2 / 2 / 2`, `저장 불러옴`, `직접 조정`), the three role tier tokens, and inline tank/damage/support preference controls with visible integer values.",
+        "Keep the existing `preference-minus-*` and `preference-plus-*` id pattern so `src/main.js` preference binding can be preserved with minimal logic churn.",
+        "Add a dedicated dense-list wrapper in `renderPreview()` such as a capped-height `current-player-list-scroll` container so the preview section no longer becomes a stack of 10 large cards.",
+        "Update `src/styles.css` with compact current-player row classes, smaller chips/steppers, tighter vertical spacing, truncation rules, and responsive behavior that avoids horizontal overflow without returning to tall card layouts.",
+        "Update the preview-related copy in `src/constants/copy.js` so the Korean guidance matches the new dense summary layout and still makes clear that balance score numbers remain hidden from the main UI."
       ]
     },
     {
-      "title": "Saved Player Row Simplification",
-      "objective": "Replace the existing saved-player card/list hybrid with a compact, name-first selection row that can be scanned quickly and selected from anywhere in the row.",
+      "title": "Candidate Regenerate UX",
+      "objective": "Let the user quickly generate another set of 6 candidate teams from the same current roster and preference state without re-pasting input or disturbing saved-player selection.",
       "deliverables": [
-        "Rewrite `renderSavedPlayers()` and the per-player row markup in `src/lib/render.js` so each saved player renders as a single compact row with name first, then compact inline tier/preference summary, selection state, and a delete action.",
-        "Make the selection hit area cover the visible row body, including text and empty row space, instead of relying on a small checkbox target. If a checkbox indicator is kept, it should be decorative or secondary to the row click target.",
-        "Keep individual delete and clear-all actions available, but isolate the delete control so clicking delete does not also toggle row selection.",
-        "Add a capped-height scrollable list container in `src/styles.css` so long saved-player libraries stay usable without stretching the page vertically.",
-        "Preserve exact-10 selection feedback in the toolbar so the user can always see `선택 n / 10` whether or not the list is expanded."
+        "Add a visible `후보 6개 다시 생성` action to the result-section header in `src/lib/render.js`, positioned near the candidate summary so it reads as part of the recommendation workflow.",
+        "In `src/main.js`, extract the current candidate-generation state assignment from `handleBalance()` into one shared helper so both `팀 나누기` and reroll use the same code path.",
+        "Implement `handleRegenerateCandidates()` in `src/main.js` so reroll rebuilds candidates from `state.matchPlayers` only; it must not clear or rewrite `state.clipboardText`, `state.matchPlayers`, `state.savedPlayers`, or `state.savedPlayerSelectionIds`.",
+        "On reroll, replace the current candidate list and editor with the fresh `buildBalanceFromPlayers(state.matchPlayers)` result and reset the editor to the newly ranked candidate 1. Previous manual swap state should be discarded because the result set has been regenerated.",
+        "Do not change `src/lib/optimizer.js` ranking precedence. Reroll is a new entry point into the existing randomized tie-bucket selection and preference-weighted surfacing, not a scoring-rule rewrite.",
+        "Keep the result panel free of numeric balance labels after reroll; the new action must not expose team totals, score differences, or internal metric names."
       ]
     },
     {
-      "title": "State Wiring And Flow Preservation",
-      "objective": "Reconnect the new sidebar and row interactions to the existing load/save workflow without regressing optimization, editor behavior, or hidden-score rules.",
+      "title": "Inquiry CTA And Shell Polish",
+      "objective": "Add a visible support/contact path to the main UI and keep the top-level Korean copy aligned with the new round-5 behavior.",
       "deliverables": [
-        "Update saved-player event handling in `src/main.js` so row clicks toggle selection, delete buttons remove records, clear-all resets selection state, and the collapse toggle only changes panel visibility.",
-        "Keep `load-selected-button` disabled unless exactly 10 saved players are selected, and keep the existing saved-player count/selection summary in sync after every toggle, delete, clear, save, and reload.",
-        "Preserve the current `loadSavedPlayersIntoMatch()` flow so loading 10 saved players rewrites the textarea with canonical TSV, hydrates `matchPlayers`, clears previous candidates/editor state, and shows Korean confirmation copy.",
-        "Do not change candidate ranking rules in `src/lib/optimizer.js`; this round is not an optimizer rewrite. The existing ordering by total diff, role-group diff sum, tank diff, then unranked diff must remain intact.",
-        "Keep the main UI free of numeric balance-score output after the layout refactor. Candidate cards, current roster, and editor should continue to hide per-player score, team total, and numeric diff labels."
+        "Add visible inquiry text and a clickable link to `https://github.com/haskell26/team-builder/issues` in the main shell via `src/lib/render.js` and `src/constants/copy.js`. Place it in a naturally visible area such as the hero, side guidance panel, or footer note inside the main UI.",
+        "Make the inquiry line actual user-facing Korean text, not a hidden developer note and not a README-only instruction.",
+        "Refresh result/guide copy so the UI explains that users can compare 6 compact candidates, reroll them quickly, and still edit the selected candidate below.",
+        "Preserve the existing saved-player sidebar information architecture from round 4; this milestone is copy/shell polish only, not another saved-player layout rewrite."
       ]
     },
     {
       "title": "Regression Coverage And Handoff Docs",
-      "objective": "Lock the new sidebar UX down with automated checks and leave the workspace documentation aligned with the shipped behavior.",
+      "objective": "Lock the round-5 UX changes with deterministic tests and leave README/FINAL_OUTPUT aligned with shipped behavior.",
       "deliverables": [
-        "Extend `test/appFlow.test.js` to cover: collapsed-by-default initial render, expand/collapse toggle, full-row selection toggling, delete-without-select side effects, exact-10 gating, and load-selected reset behavior.",
-        "Update `test/responsiveLayout.test.js` so it asserts the new sidebar layout contract, saved-list scroll container, row-level compact styling hooks, and stacked layout fallback at smaller widths.",
-        "Keep or extend regression coverage for header/headerless parsing, candidate count 6, candidate uniqueness, swap editing, and hidden-score rendering so the round-4 UI work cannot silently break round-3 behavior.",
-        "If needed for the chosen implementation, update `testing/fakeDom.js` only enough to support the new row/toggle interactions; prefer simple ID-addressable controls over introducing broad fake-DOM complexity.",
-        "Update `README.md` and `FINAL_OUTPUT.md` to describe the new sidebar placement, default collapsed behavior, one-line row selection UX, and the fact that prior browser/mobile real-device verification remains documented as non-blocking for this iteration.",
-        "Run `npm test` and `npm run build` as required verification. `npm run test:browser` remains optional evidence only; if it is not run, keep the docs truthful about that."
+        "Extend `test/appFlow.test.js` to cover dense current-player row rendering after paste/load, preference editing from the compact row layout, reroll button presence, reroll preserving textarea/current-player state, and visible GitHub issue guidance in the app shell.",
+        "Add deterministic reroll verification. Prefer a controlled `Math.random` sequence or a small test helper so one app-flow test can prove the result area is recomputed without relying on flaky randomness.",
+        "Update `test/responsiveLayout.test.js` to assert the compact current-player list container, row-level dense styling hooks, capped-height behavior, and no regression in the saved-player sidebar or candidate/editor responsive contracts.",
+        "Keep existing regression coverage for header/headerless parsing, exact-10 saved-player loading, candidate ranking order, 6-candidate output, unique player assignment, candidate selection, swap editing, and hidden-score rendering. Extend only where round-5 behavior touches them.",
+        "Update `README.md` and `FINAL_OUTPUT.md` to describe the new dense current-match UI, the reroll workflow, and the GitHub issue contact path. Keep verification notes truthful: `npm test` and `npm run build` are required, while browser/mobile smoke remains optional and non-blocking unless actually executed.",
+        "Run `npm test` and `npm run build` before handoff and record the results in the docs."
       ]
     }
   ],
   "acceptance_criteria": [
-    "On first load, the saved-player loader renders in a side area separate from the main paste/input area and starts in a collapsed state.",
-    "The saved-player panel has a visible fold/unfold control in Korean, and toggling it expands/collapses only that panel body.",
-    "When collapsed, the saved-player panel does not render as a long vertical section under the main input flow.",
-    "When expanded, the saved-player list uses its own capped-height scroll area instead of growing the whole page indefinitely.",
-    "Each saved player is shown in one compact row with name-first presentation and inline summary data instead of a tall detailed card layout.",
-    "Clicking the saved-player row body, including text and empty row space, toggles that player's selected/unselected state.",
-    "Clicking the per-row delete control deletes that player without also toggling its selection state.",
-    "The saved-player toolbar count updates immediately after selection, deselection, individual deletion, and clear-all deletion.",
-    "`선택한 10명 불러오기` remains disabled unless exactly 10 saved players are selected.",
-    "Loading exactly 10 saved players rewrites the textarea with those 10 players, hydrates the current roster, and clears prior candidate/editor results until recalculation.",
-    "Saving the current valid roster still persists tier data and role-preference point data to local storage.",
-    "Individual saved-player deletion still works after the layout refactor.",
-    "The clear-all saved-player action still removes the entire saved-player library and resets selection count to `0 / 10`.",
-    "Header-present and headerless paste input both still parse correctly.",
-    "The app still renders exactly 6 candidate combinations for a valid 10-player roster.",
-    "Every candidate still satisfies `1탱 2딜 2힐` per team and does not duplicate a player within that candidate.",
-    "Candidate ordering still follows total score difference, role-group score-difference sum, tank score difference, and unranked distribution difference, with randomness only inside fully tied buckets.",
-    "Selecting a candidate still loads it into the final edit area, and two slot clicks still swap players immediately.",
-    "The main UI still hides personal numeric scores, team totals, and numeric score-difference labels by default.",
-    "All new saved-player sidebar, toggle, and status copy is shown in Korean.",
-    "`README.md` and `FINAL_OUTPUT.md` describe the shipped sidebar/collapse workflow and explicitly treat prior browser/mobile real-device verification gaps as non-blocking for this round."
+    "After a valid 10-player paste or saved-player load, the `현재 10명 확인 및 선호 점수` section renders 10 compact current-player rows instead of 10 tall card-style entries.",
+    "Each current-player row shows the player name, preference source state, three role tier summaries, and current tank/damage/support preference values with editable controls.",
+    "The current-match preview uses a dense layout and a capped-height or equivalent compact container so the section no longer stretches the page like a stack of large cards.",
+    "Preference editing still works from the compact row layout, and each player's tank/damage/support total remains exactly 6 after every change.",
+    "The main UI still hides internal balance numbers such as personal tier score, team total, total score difference, role-score difference sum, tank score difference, and unranked difference.",
+    "When candidates are available, the result section shows a visible `후보 6개 다시 생성` button.",
+    "Clicking the reroll button recalculates candidates from the current roster and current preference-point state without requiring the user to paste input again.",
+    "Reroll does not clear or rewrite the textarea contents, current-player rows, saved-player library, or saved-player selection count.",
+    "After reroll, the result section still shows exactly 6 candidates and the final editor reflects the freshly selected candidate set.",
+    "Candidate ordering still follows total score difference, then role-group score-difference sum, then tank score difference, then unranked distribution difference, with randomness only inside exact metric ties.",
+    "Every displayed candidate still assigns 10 unique players and keeps both teams at `1탱 2딜 2힐`.",
+    "Selecting a candidate still loads it into the final edit area, and clicking two slots still swaps players immediately.",
+    "The saved-player sidebar remains collapsed by default and exact-10 saved-player load gating still works after the round-5 changes.",
+    "The main UI visibly includes inquiry text plus a clickable link to `https://github.com/haskell26/team-builder/issues`.",
+    "`README.md` and `FINAL_OUTPUT.md` both mention the reroll workflow, dense current-match UI, and GitHub issue contact path.",
+    "Header-present and headerless clipboard input both still parse correctly.",
+    "All new user-facing text introduced in this round remains in Korean."
   ],
   "test_strategy": [
-    "Extend `test/appFlow.test.js` to assert initial collapsed state, toggle behavior, row-body click selection, delete-button isolation, exact-10 gating, and load-selected roster hydration/reset flow.",
-    "Update `test/responsiveLayout.test.js` to check for the new sidebar layout classes, saved-list scroll container, compact saved-row styling hooks, and mobile-width stacking fallback.",
-    "Retain parser regression coverage for both header-present and headerless TSV input so the layout work cannot break the ingestion flow.",
-    "Retain optimizer/editor regression coverage for 6 candidates, no duplicate assignment, required ordering, candidate selection, and two-click swap behavior.",
-    "Add or retain render-level assertions that forbidden score labels do not appear anywhere in the main UI after the saved-player refactor.",
-    "If the row-click implementation needs different interaction primitives, make the smallest possible `testing/fakeDom.js` change and keep tests centered on public UI behavior rather than internal DOM structure.",
-    "Run `npm test` and `npm run build` before handoff. Treat `npm run test:browser` as optional, and only claim it in docs if it was actually executed."
+    "Extend `test/appFlow.test.js` so the main entrypoint test asserts compact current-player rows after paste, preference controls still mutate values and source state, and the UI no longer depends on tall preview cards.",
+    "Add an app-flow reroll test that controls randomness explicitly, clicks `팀 나누기`, captures the result markup, clicks `후보 6개 다시 생성`, and asserts the result area is recomputed while `textarea.value` and current-player UI state stay intact.",
+    "Add or update assertions that the main shell HTML contains the GitHub issues URL and visible Korean inquiry text.",
+    "Update `test/responsiveLayout.test.js` to verify the new current-player dense-list classes, capped-height container, truncation rules, and mobile-safe shrink/wrap behavior without horizontal overflow.",
+    "Keep optimizer regression tests for ranking precedence and tie-bucket randomization so reroll work cannot accidentally change scoring order.",
+    "Keep parser, saved-player, candidate selection, swap editing, and hidden-score regression coverage in place; add only the minimum extra assertions needed for round 5.",
+    "Run `npm test` and `npm run build` as required verification. Treat `npm run test:browser` as optional and only claim it in docs if it was actually executed."
   ],
   "risks": [
     {
-      "risk": "Moving the saved-player section into the sidebar can accidentally break the current page hierarchy or push important panels below the fold in awkward ways.",
-      "mitigation": "Use an explicit top-level two-column shell in `src/lib/render.js` and `src/styles.css`, keep preview/result panels in their existing main flow, and add responsive layout assertions for both desktop and narrow-width stacking."
+      "risk": "The dense current-player row layout can become too cramped, making preference controls hard to use or causing overflow with long Korean names and tier text.",
+      "mitigation": "Reuse the existing plus/minus interaction model, add explicit compact row/grid CSS with `min-width: 0` and truncation, and cover the layout contract in `test/responsiveLayout.test.js`."
     },
     {
-      "risk": "Making the whole saved-player row clickable can create event collisions where delete also toggles selection, or where only part of the row is actually interactive.",
-      "mitigation": "Implement the row selection target and delete target as clearly separated controls, and add app-flow tests that click both paths independently to prove the behavior."
+      "risk": "The reroll action can accidentally clear clipboard input, current preferences, or saved-player selection if it reuses the wrong reset path.",
+      "mitigation": "Extract candidate generation into a helper that only rewrites result/editor state, and add an app-flow test that asserts textarea contents and preview state are unchanged after reroll."
     },
     {
-      "risk": "The compact one-line row can overflow badly with long Korean names or dense tier/preference summaries.",
-      "mitigation": "Use `min-width: 0`, truncation/overflow rules, and a capped scrollable list container; verify the CSS contract in `test/responsiveLayout.test.js`."
+      "risk": "Users may click reroll and sometimes see little visible change if the current roster has few exact-metric ties.",
+      "mitigation": "Keep the button labeled as a fresh regenerate action rather than promising a completely different result every time, and verify recomputation deterministically in tests with controlled randomness."
     },
     {
-      "risk": "The layout refactor can unintentionally regress round-3 functionality such as exact-10 load gating, swap editing, or hidden-score rendering.",
-      "mitigation": "Do not rewrite app-flow or optimizer logic beyond the saved-panel wiring, and keep regression tests for candidate generation, selection, swapping, and hidden-score text in place."
+      "risk": "A builder may modify optimizer ranking rules while wiring reroll because the new feature touches candidate generation code.",
+      "mitigation": "State explicitly that `src/lib/optimizer.js` ranking precedence must stay unchanged and retain the existing optimizer ranking tests as a guardrail."
     },
     {
-      "risk": "A junior builder may accidentally treat the sidebar work as a reason to modify ranking or expose internal balance numbers for debugging.",
-      "mitigation": "State explicitly in the plan and acceptance criteria that `src/lib/optimizer.js` ranking rules stay unchanged and that score numbers remain internal-only."
+      "risk": "The GitHub issue guidance may be added in a low-visibility place or only in docs, failing the main-UI requirement.",
+      "mitigation": "Place the CTA in top-level shell rendering, assert the URL and Korean inquiry copy in app-flow tests, and mirror the same guidance in `README.md` and `FINAL_OUTPUT.md`."
     },
     {
-      "risk": "Collapse state can get reset or lost during partial re-renders, leading to confusing UX when the user saves, deletes, or loads players.",
-      "mitigation": "Keep `savedPanelExpanded` as a top-level state value in `src/main.js` and ensure all panel re-renders read from that single source of truth."
-    },
-    {
-      "risk": "Docs may overclaim browser/mobile verification status because prior QA artifacts flagged that area.",
-      "mitigation": "Update `README.md` and `FINAL_OUTPUT.md` to describe only the verification actually run in this round and explicitly note that real-browser/mobile evidence is non-blocking here."
+      "risk": "The workspace still contains round-4 `.harness` artifacts, which can cause implementation drift if the builder follows stale wording instead of this round-5 plan.",
+      "mitigation": "Treat this plan as the authoritative round-5 execution source, and ensure the shipped docs and handoff explicitly describe the dense current-match UI, reroll UX, and issue guidance introduced in this round."
     }
   ],
   "definition_of_done": [
-    "The saved-player loader is rendered in a side area, not as a full-width vertical section under the input flow, and it starts collapsed by default.",
-    "The saved-player panel can be expanded/collapsed in Korean UI without affecting current roster, candidates, or editor state.",
-    "Expanded saved players render as compact one-line rows with name-first scanning and full-row selection hit area.",
-    "Saved-player selection, exact-10 load gating, individual delete, and clear-all delete all work correctly after the UI refactor.",
-    "Clipboard parsing, role-preference editing, save/update, 6-candidate generation, candidate selection, and two-click swap editing all still work.",
-    "Candidate ordering rules and hidden-score UI rules remain unchanged.",
-    "Automated coverage verifies the new sidebar UX plus key existing flows, and both `npm test` and `npm run build` pass.",
-    "`README.md` and `FINAL_OUTPUT.md` reflect the shipped round-4 workflow and the non-blocking browser/mobile verification stance."
+    "The current 10-player preview is rendered as a dense row-based summary view that supports the existing 6-point preference editing workflow.",
+    "The current-match section no longer expands as 10 large cards and remains visually compact for normal desktop use.",
+    "The result section includes a visible reroll action that regenerates 6 candidates from the same roster and preference state without clearing inputs.",
+    "Candidate ranking precedence, hidden internal balance scores, saved-player sidebar behavior, candidate selection, and click-to-swap editing all still work.",
+    "The main UI includes a visible GitHub issue inquiry link for questions and suggestions.",
+    "Automated tests cover the dense current-player rows, reroll preservation behavior, and inquiry link presence, along with existing parser/optimizer/editor regressions.",
+    "`npm test` and `npm run build` pass before handoff.",
+    "`README.md` and `FINAL_OUTPUT.md` describe the shipped round-5 behavior and keep browser/mobile verification notes honest and non-overclaimed."
   ],
   "open_questions": [
-    "Assumption: the saved-player panel should default to collapsed on every fresh page load and does not need its open/closed state persisted in local storage.",
-    "Assumption: the delete button is intentionally excluded from the row-wide selection hit area; every other visible part of the row should toggle selection.",
-    "Assumption: the one-line saved-player row may use abbreviated inline tier/preference summaries or truncation as needed, as long as it remains clearly scannable and avoids tall multi-line cards.",
-    "Assumption: on desktop, the saved-player loader should live in the right sidebar next to the paste/input area; on smaller widths it may stack below that area while remaining collapsed by default.",
-    "Assumption: no optimizer or preference-ranking changes are required in round 4 beyond regression coverage; the main scope is saved-player UX and layout.",
-    "Assumption: existing browser/mobile real-device QA gaps from prior rounds are not blockers for this iteration, but the docs still need to report verification status accurately.",
-    "Assumption: the current `현재 10명 저장/업데이트` entry point remains in the current-roster section; round 4 only changes how saved players are browsed and loaded, not where saving is initiated."
+    "Assumption: the round-5 prompt in this task supersedes the older round-4 wording currently present in `.harness/spec.md` and `.harness/plan.json`.",
+    "Assumption: the reroll button only needs to be shown when a valid candidate set already exists; the empty result state can remain simple.",
+    "Assumption: reroll resets the selected candidate/editor to the newly ranked candidate 1 and clears prior manual swap state, because the candidate set has been regenerated.",
+    "Assumption: the compact current-player rows should reuse inline plus/minus controls rather than introducing free-form numeric text inputs, to minimize state and validation changes.",
+    "Assumption: desktop should remain one-row-first for each current-player summary; on narrower widths, limited internal wrapping is acceptable as long as the UI stays compact and does not regress to tall card stacks.",
+    "Assumption: prior browser/mobile real-device verification gaps remain non-blocking in this round, but the docs must still state exactly what was and was not executed."
   ]
 }

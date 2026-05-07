@@ -1,36 +1,22 @@
 {
-  "verdict": "revise",
-  "summary": "Most round-4 functionality is present and the claimed commands pass, but the saved-player loader still misses a core acceptance criterion: the full visible row is not actually selectable, and the narrow-width CSS regresses the new one-line row UX into stacked multi-line rows.",
-  "score": 86,
+  "verdict": "pass",
+  "summary": "No blocking issues were confirmed in the inspected workspace. Round-5 scope is implemented in code and docs, automated verification passed, and an extra runtime sanity check confirmed 6-candidate generation, reroll variability, unique-player assignment, and `1탱 2딜 2힐` role shape. Residual real-browser/mobile smoke remains unexecuted in this environment, but the round-5 spec explicitly makes that non-blocking and the docs state that accurately.",
+  "score": 96,
   "strengths": [
-    "`npm test` passed across all 8 test files, including the updated app-flow and layout checks.",
-    "`npm run build` succeeded and produced a static `dist/` bundle suitable for frontend-only deployment.",
-    "Core round-3/round-4 behaviors appear intact from code and test inspection: header/headerless parsing, 6 candidate generation, `1탱 2딜 2힐` slot structure, candidate selection, swap editing, preference-point persistence, and hidden balance-score labels.",
-    "`README.md` and `FINAL_OUTPUT.md` are broadly aligned with the implemented sidebar/collapse flow and accurately describe the unrun browser smoke as non-blocking for this round."
+    "`src/lib/render.js`, `src/main.js`, and `src/styles.css` implement the dense current-player row layout, capped preview scroll area, visible reroll control, and visible GitHub issue CTA in the main shell.",
+    "`npm test` passed across all 8 test files, including the updated app-flow and responsive-layout coverage for reroll preservation, compact rows, saved-player sidebar behavior, and contact-link presence.",
+    "`npm run build` succeeded and produced a static `dist/` bundle with the expected frontend-only structure for GitHub Pages-style deployment.",
+    "Independent runtime checking on the sample fixture confirmed 10 parsed players, 113400 valid candidate assignments, exactly 6 displayed candidates, unique-player usage per candidate, valid `1탱 2딜 2힐` composition, and reroll-sensitive top candidate sets under different RNG sequences.",
+    "`README.md` and `FINAL_OUTPUT.md` are aligned with the shipped behavior and truthfully disclose that `npm run test:browser` was not run."
   ],
-  "findings": [
-    {
-      "severity": "high",
-      "title": "Saved-player selection does not cover the full visible row body",
-      "detail": "The spec requires clicking the saved-player row body, including empty space/background, to toggle selection. In the implementation only the inner `#saved-player-toggle-*` button receives the click handler (`src/main.js:90-117`). The wrapper row rendered by `renderSavedPlayer()` is an inert `<article>` containing that button plus a separate delete button (`src/lib/render.js:133-159`). CSS adds visible non-button space to the row via `.saved-player-row { gap: 10px; padding: 6px; }` (`src/styles.css:449-462`), so clicks on the row background/padding/gap do not toggle selection. The test named as full-hit-area coverage only clicks `#saved-player-toggle-*`, so this acceptance criterion is not actually verified (`test/appFlow.test.js:240-269`).",
-      "fix": "Make the row container itself the selection target for every non-delete area, or restructure the markup so a single control spans the full visible row body except the isolated delete action. Update the automated test to click row-level background space, not only the inner toggle button."
-    },
-    {
-      "severity": "medium",
-      "title": "The responsive fallback breaks the new compact one-line saved-player rows below 960px",
-      "detail": "Round 4 prioritizes a compressed one-line saved-player list, but the responsive CSS explicitly turns rows back into stacked vertical layouts at narrower widths: `.saved-player-row` switches to `flex-direction: column` and `.saved-player-row-button` switches to `grid-template-columns: 1fr` inside `@media (max-width: 960px)` (`src/styles.css:982-1008`). That reintroduces taller rows and extra vertical growth for the saved-player library in common narrow desktop/tablet widths, which conflicts with the spec’s one-line compact-list requirement and the docs’ current one-line UX description.",
-      "fix": "Keep the saved-player row horizontally compressed with truncation/ellipsis at narrower widths and limit the responsive fallback to stacking the sidebar itself. If a stacked row is intentional, the acceptance/docs need to be narrowed accordingly instead of claiming one-line rows generally."
-    }
-  ],
-  "required_fixes": [
-    "Make saved-player row selection truly row-wide for all non-delete visible space and add a test that proves background/empty-space clicks toggle selection.",
-    "Preserve the compact one-line saved-player row layout at narrower widths, or explicitly narrow the product/docs expectations if that behavior is not intended."
-  ],
+  "findings": [],
+  "required_fixes": [],
   "verification_run": [
     "`npm test`",
     "`npm run build`",
-    "`command -v chromium-browser || command -v chromium || command -v google-chrome || command -v google-chrome-stable || command -v chrome`",
-    "Inspected `.harness/spec.md`, `.harness/plan.json`, `src/main.js`, `src/lib/render.js`, `src/styles.css`, `src/lib/appFlow.js`, `src/lib/optimizer.js`, `src/lib/playerStore.js`, `test/appFlow.test.js`, `test/responsiveLayout.test.js`, `README.md`, and `FINAL_OUTPUT.md`"
+    "`for name in chromium chromium-browser google-chrome google-chrome-stable microsoft-edge microsoft-edge-stable; do command -v \"$name\" || true; done`",
+    "`node --input-type=module` sanity check over `src/fixtures/samplePlayers.tsv` validating parse success, 6 displayed candidates, candidate-count total, unique assignments, role-shape correctness, and differing reroll outputs under different seeded RNG sequences",
+    "Inspected `.harness/spec.md`, `.harness/plan.json`, `src/main.js`, `src/lib/render.js`, `src/lib/appFlow.js`, `src/lib/optimizer.js`, `src/constants/copy.js`, `src/styles.css`, `test/appFlow.test.js`, `test/responsiveLayout.test.js`, `README.md`, `FINAL_OUTPUT.md`, `scripts/build.mjs`, and `dist/index.html`"
   ],
-  "release_readiness": "Not release-ready. The sidebar refactor is close, but the saved-player row interaction and compact-row UX still fall short of this round’s core acceptance requirements."
+  "release_readiness": "Release-ready for round 5. Remaining risk is limited to still-unrun real-browser/mobile smoke in this sandbox, which is accurately documented and explicitly non-blocking under the current spec."
 }

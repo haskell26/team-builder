@@ -1,33 +1,42 @@
 {
-  "summary": "Built the round-4 saved-player UX pass: the loader now lives in a right sidebar, starts collapsed, expands via a Korean toggle, renders saved players as compact one-line full-row selectors, and keeps the existing save/load, candidate, preference, and swap flows intact without reintroducing numeric score UI.",
+  "summary": "Implemented the round-5 UX pass for Team Builder: the current 10-player panel is now a dense row-based summary with inline preference steppers, the results panel has a visible `후보 6개 다시 생성` action that re-rolls candidates without clearing current state, and the main shell/docs now include the GitHub issue inquiry path. Regression tests were extended and the static bundle was rebuilt.",
   "completed_work": [
-    "Refactored the app shell in `src/lib/render.js` so the top area is a two-column workspace with the saved-player loader separated into a sidebar and the preview/result panels left in the main flow below.",
-    "Added `savedPanelExpanded` state and wiring in `src/main.js`, defaulting to collapsed and keeping expand/collapse independent from roster, candidate, and editor state.",
-    "Rebuilt the saved-player panel markup and styling into a compact row-based list with row-wide selection hit areas, isolated delete buttons, capped-height scrolling, and Korean collapsed/expanded helper copy.",
-    "Kept exact-10 load gating, saved-player count sync, canonical TSV reload, and result reset behavior intact while preserving the existing optimizer ordering and hidden-score UI.",
-    "Extended regression coverage in `test/appFlow.test.js` and `test/responsiveLayout.test.js` for collapsed-by-default behavior, row click selection, delete isolation, load reset behavior, sidebar layout classes, and scroll/compact-row styling hooks.",
-    "Updated `README.md` and `FINAL_OUTPUT.md` to describe the sidebar workflow, default collapsed state, one-line saved-player rows, verification commands run, and the non-blocking browser/mobile verification gap for this round."
+    "Refactored the preview renderer in `src/lib/render.js` to replace tall roster cards with compact `current-player-row` rows inside a capped `current-player-list-scroll` container while preserving the existing preference button id pattern.",
+    "Updated Korean UI copy in `src/constants/copy.js` to explain the dense current-match summary, hidden numeric balance scores, reroll workflow, and visible inquiry CTA.",
+    "Added a visible GitHub issue contact line to the main shell in `src/lib/render.js` linking to `https://github.com/haskell26/team-builder/issues`.",
+    "Added a result-toolbar reroll button in `src/lib/render.js` and wired it in `src/main.js` via a shared candidate rebuild helper so reroll only refreshes candidates/editor state from `state.matchPlayers`.",
+    "Kept ranking behavior unchanged by reusing the existing `buildBalanceFromPlayers(...)` path rather than modifying optimizer precedence.",
+    "Reworked `src/styles.css` for dense current-player rows, compact stepper controls, capped-height scrolling, result toolbar styling, and responsive behavior that stays compact without horizontal overflow.",
+    "Extended `test/appFlow.test.js` to cover dense current-player row rendering, inquiry CTA presence, reroll button presence, and deterministic reroll preservation of textarea/current-player/saved-selection state.",
+    "Extended `test/responsiveLayout.test.js` to cover the new dense current-player layout hooks, capped-height container, truncation behavior, and reroll/contact styling hooks.",
+    "Updated `README.md` and `FINAL_OUTPUT.md` to document the dense current-match UI, reroll flow, GitHub issue contact path, and truthful verification status.",
+    "Ran the build so `dist/` reflects the updated round-5 source files."
   ],
   "verification": [
     {
+      "command": "node --test test/appFlow.test.js test/responsiveLayout.test.js",
+      "result": "Passed."
+    },
+    {
       "command": "npm test",
-      "result": "Passed all 8 test files, including the updated app-flow and responsive layout coverage."
+      "result": "Passed all 8 test files."
     },
     {
       "command": "npm run build",
-      "result": "Succeeded and regenerated the static `dist/` bundle."
+      "result": "Passed and rebuilt the static bundle in `dist/`."
     }
   ],
   "known_gaps": [
-    "`npm run test:browser` was not run in this environment, so real browser/mobile smoke evidence is still absent. The current round spec treats that as non-blocking."
+    "`npm run test:browser` was not run in this environment, so real browser/mobile smoke remains unverified. Per the round-5 spec, that gap is non-blocking for this handoff."
   ],
   "handoff_notes": [
-    "`dist/src/*` was refreshed by the verified build and now includes the sidebar/collapse changes.",
-    "The worktree already showed unrelated modifications in `.harness/spec.md` and `.harness/plan.json`; they were left as-is."
+    "Reroll intentionally resets the final editor to the newly ranked candidate 1 and discards any prior manual swap state.",
+    "The reroll handler only refreshes result/editor state; it does not clear `clipboardText`, `matchPlayers`, saved-player records, or saved-player selections.",
+    "The workspace already had `.harness/spec.md` and `.harness/plan.json` marked modified before handoff; I did not edit them."
   ],
   "files_of_interest": [
-    "src/main.js",
     "src/lib/render.js",
+    "src/main.js",
     "src/styles.css",
     "src/constants/copy.js",
     "test/appFlow.test.js",

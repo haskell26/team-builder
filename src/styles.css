@@ -52,13 +52,15 @@ body {
 .saved-toolbar,
 .saved-toolbar-actions,
 .preview-toolbar,
+.result-toolbar,
 .saved-player-row,
 .saved-player-row-body,
-.roster-card,
-.roster-card-header,
+.current-player-row,
+.current-player-summary,
+.current-player-header,
+.current-player-preferences,
 .role-tier-row,
 .role-tier-pair,
-.preference-controls,
 .preference-stepper,
 .preference-stepper-controls,
 .candidate-card,
@@ -79,8 +81,8 @@ body {
 .saved-panel-message,
 .guide-list-item,
 .assumption-list li,
-.roster-card-meta,
-.preference-total,
+.hero-support-note,
+.current-player-name,
 .mini-slot-name,
 .editor-slot-name,
 .editor-guide {
@@ -150,6 +152,18 @@ button {
   color: var(--muted);
   font-size: 1.02rem;
   line-height: 1.65;
+}
+
+.hero-support-note {
+  margin: 18px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.inline-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-underline-offset: 0.14em;
 }
 
 .hero-score-badge {
@@ -440,14 +454,27 @@ button {
   padding-right: 4px;
 }
 
+.current-player-list-scroll {
+  max-height: 540px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .saved-player-list,
-.roster-list {
+.current-player-list {
   display: grid;
+}
+
+.saved-player-list {
   gap: 14px;
 }
 
+.current-player-list {
+  gap: 10px;
+}
+
 .saved-player-row,
-.roster-card {
+.current-player-row {
   border: 1px solid rgba(17, 76, 81, 0.1);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.8);
@@ -463,16 +490,6 @@ button {
 .saved-player-row-selected {
   border-color: rgba(17, 76, 81, 0.28);
   box-shadow: 0 0 0 1px rgba(17, 76, 81, 0.08);
-}
-
-.saved-player-row-body,
-.roster-card {
-  display: grid;
-  gap: 14px;
-}
-
-.roster-card {
-  padding: 16px;
 }
 
 .saved-player-row-body {
@@ -497,10 +514,24 @@ button {
   background: rgba(17, 76, 81, 0.04);
 }
 
-.roster-card-header {
+.current-player-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+}
+
+.current-player-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.current-player-header {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 
 .saved-player-state {
@@ -525,9 +556,9 @@ button {
 }
 
 .saved-player-name,
-.roster-card-name {
+.current-player-name {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1rem;
 }
 
 .saved-player-name {
@@ -546,11 +577,11 @@ button {
   text-overflow: ellipsis;
 }
 
-.roster-card-meta,
-.preference-total {
-  margin: 6px 0 0;
-  color: var(--muted);
-  line-height: 1.5;
+.current-player-name {
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .source-pill {
@@ -566,10 +597,20 @@ button {
   white-space: nowrap;
 }
 
+.source-pill-compact {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
 .role-tier-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.current-player-tier-row {
+  gap: 8px;
 }
 
 .role-tier-pair {
@@ -578,10 +619,10 @@ button {
   gap: 8px;
 }
 
-.preference-controls {
+.current-player-preferences {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .preference-stepper {
@@ -597,6 +638,21 @@ button {
   font-weight: 700;
 }
 
+.preference-stepper-compact {
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 14px;
+}
+
+.preference-stepper-compact .preference-stepper-controls {
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.preference-stepper-compact .preference-stepper-label {
+  font-size: 0.82rem;
+}
+
 .preference-stepper-controls {
   display: flex;
   align-items: center;
@@ -610,6 +666,11 @@ button {
   font-size: 1rem;
 }
 
+.preference-stepper-value-compact {
+  min-width: 38px;
+  font-size: 0.9rem;
+}
+
 .stepper-button {
   width: 40px;
   min-width: 40px;
@@ -619,6 +680,14 @@ button {
   color: var(--primary);
   font-size: 1.2rem;
   font-weight: 700;
+}
+
+.stepper-button-compact {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border-radius: 10px;
+  font-size: 1rem;
 }
 
 .stepper-button:disabled {
@@ -726,6 +795,17 @@ button {
 .detail-section {
   display: grid;
   gap: 16px;
+}
+
+.result-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.result-reroll-button {
+  flex: 0 0 auto;
 }
 
 .detail-section {
@@ -1010,14 +1090,19 @@ button {
   .saved-toolbar,
   .saved-toolbar-actions,
   .preview-toolbar,
-  .roster-card-header,
+  .result-toolbar,
+  .current-player-header,
   .editor-slot-top {
     flex-direction: column;
     align-items: flex-start;
   }
 
-  .preference-controls {
+  .current-player-row {
     grid-template-columns: 1fr;
+  }
+
+  .current-player-preferences {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .saved-player-row-body {
@@ -1062,5 +1147,13 @@ button {
 
   .clipboard-textarea {
     min-height: 220px;
+  }
+
+  .current-player-row {
+    padding: 12px;
+  }
+
+  .current-player-preferences {
+    grid-template-columns: 1fr;
   }
 }
